@@ -48,6 +48,13 @@ During development, multiple eCommerce platforms were tested against server-side
 | **eBay** | `HTTP 403` | Akamai Bot Manager (Reference error page) | ❌ Blocked (fingerprint rejected) |
 | **scrapingcourse.com/ecommerce** | `HTTP 200` | Static WooCommerce store (188 products) | ✅ **Selected Primary Target** |
 
+### 4.1 Ethical & Scope Boundaries
+- **Stealth Automation & Residential Proxies**: Invasive bypassing mechanisms (e.g. stealth browser automation, residential proxy networks, TLS fingerprint spoofing) were evaluated and deliberately excluded on ethical and Terms of Service compliance grounds.
+- **HTML DOM Parsing vs Raw JSON**: Direct extraction from undocumented JSON endpoints (e.g. Shopify `/products.json`) was avoided in order to strictly fulfill the requirement of validating genuine HTML DOM parsing with `symfony/dom-crawler`.
+
+### 4.2 Target Resolution
+The scraper is routed to an accessible, real-world scrapable eCommerce store (`scrapingcourse.com/ecommerce` / accessible Shopify storefront HTML) featuring 188 products, pagination, rich media, and clean DOM markup to validate the end-to-end pipeline until an ethical, compliant solution is established for enterprise eCommerce platforms.
+
 ---
 
 ## 5. Services Architecture
