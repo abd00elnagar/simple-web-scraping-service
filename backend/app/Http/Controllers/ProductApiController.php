@@ -3,17 +3,30 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Services\ScraperService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ProductApiController extends Controller
 {
     /**
      * Display a listing of products.
+     * Automatically triggers an initial scrape if the database is currently empty.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ScraperService $scraper): JsonResponse
     {
-        $query = Product::query()->orderByDesc('updated_at');
+        // Auto-scrape on initial hit if database has zero records
+        if (Product::count() === 0) {
+            try {
+                Log::info('[ProductApiController] Zero products in DB on initial request. Triggering initial scrape.');
+                $scraper->scrape();
+            } catch (\Throwable $e) {
+                Log::warning('[ProductApiController] Initial auto-scrape failed: ' . $e->getMessage());
+            }
+        }
+
+        $query = Product::query()->inRandomOrder();
 
         // will be enabled later with the frontend implementation:
         /*

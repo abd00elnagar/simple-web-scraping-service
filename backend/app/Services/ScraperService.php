@@ -20,14 +20,31 @@ class ScraperService
      * - scrapingcourse.com/ecommerce: HTTP 200, 188 WooCommerce products, zero anti-bot.
      *                  Confirmed working fallback.
      */
-    private const TARGETS = [
-        [
-            'url'     => 'https://www.scrapingcourse.com/ecommerce/',
-            'parser'  => 'parseScrapingCourse',
-            'label'   => 'ScrapingCourse Ecommerce (fallback)',
-            'timeout' => 20,
-        ],
-    ];
+    private const BASE_URL   = 'https://www.scrapingcourse.com/ecommerce/';
+    private const TOTAL_PAGES = 12;
+    private const LABEL       = 'ScrapingCourse Ecommerce';
+    private const TIMEOUT     = 20;
+
+    /**
+     * Tracks which catalog page to scrape next (rotates 1 → 12 → 1 → ...).
+     * Stored as a flat file in storage/app so it survives between CLI runs.
+     */
+    private function nextPage(): int
+    {
+        $file = storage_path('app/scraper_page.txt');
+        $page = file_exists($file) ? (int) file_get_contents($file) : 1;
+        $page = ($page >= self::TOTAL_PAGES) ? 1 : $page + 1;
+        file_put_contents($file, $page);
+
+        return $page;
+    }
+
+    private function pageUrl(int $page): string
+    {
+        return $page === 1
+            ? self::BASE_URL
+            : self::BASE_URL . 'page/' . $page . '/';
+    }
 
     public function __construct(
         private readonly ProxyIdentityClient $proxyClient,
@@ -41,53 +58,49 @@ class ScraperService
     public function scrape(): array
     {
         $identity = $this->proxyClient->getNextIdentity();
+        $page     = $this->nextPage();
+        $url      = $this->pageUrl($page);
 
-        Log::info('[ScraperService] Starting scrape with identity', [
+        Log::info('[ScraperService] Starting scrape', [
             'proxy_label' => $identity['proxy_label'],
             'user_agent'  => $identity['headers']['User-Agent'],
+            'page'        => $page,
+            'url'         => $url,
         ]);
 
-        $attempts = [];
+        [$html, $status] = $this->fetchHtml($url, $identity['headers'], self::TIMEOUT);
 
-        foreach (self::TARGETS as $target) {
-            [$html, $status] = $this->fetchHtml($target['url'], $identity['headers'], $target['timeout'] ?? 20);
+        $attempts = [[
+            'target'  => self::LABEL . " (page {$page})",
+            'url'     => $url,
+            'status'  => $status,
+            'success' => $html !== null,
+        ]];
 
-            $attempts[] = [
-                'target' => $target['label'],
-                'url'    => $target['url'],
-                'status' => $status,
-                'success' => $html !== null,
-            ];
-
-            if ($html === null) {
-                Log::warning("[ScraperService] {$target['label']} failed (HTTP {$status}). Trying next target.");
-                continue;
-            }
-
-            // Successfully fetched — parse and upsert
-            $products = $this->{$target['parser']}($html, $target['url']);
-            $upserted = $this->upsertProducts($products);
-
-            Log::info("[ScraperService] Completed scrape from {$target['label']}", [
-                'scraped'  => count($products),
-                'upserted' => $upserted,
-            ]);
+        if ($html === null) {
+            Log::error('[ScraperService] Fetch failed.', ['status' => $status, 'url' => $url]);
 
             return [
-                'target'      => $target['label'],
-                'scraped'     => count($products),
-                'upserted'    => $upserted,
+                'target'      => 'none',
+                'scraped'     => 0,
+                'upserted'    => 0,
                 'proxy_label' => $identity['proxy_label'],
                 'attempts'    => $attempts,
             ];
         }
 
-        Log::error('[ScraperService] All targets failed. No products scraped.');
+        $products = $this->parseScrapingCourse($html, $url);
+        $upserted = $this->upsertProducts($products);
+
+        Log::info("[ScraperService] Done — page {$page}", [
+            'scraped'  => count($products),
+            'upserted' => $upserted,
+        ]);
 
         return [
-            'target'      => 'none',
-            'scraped'     => 0,
-            'upserted'    => 0,
+            'target'      => self::LABEL . " (page {$page})",
+            'scraped'     => count($products),
+            'upserted'    => $upserted,
             'proxy_label' => $identity['proxy_label'],
             'attempts'    => $attempts,
         ];

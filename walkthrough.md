@@ -28,4 +28,48 @@
 - **Ethical & Scope Boundary**: Ruled out stealth headless browser automation, residential IP networks, and TLS fingerprint spoofing due to Terms of Service violations and disproportionate trial scope. Also ruled out querying direct `/products.json` endpoints to adhere strictly to the requirement of testing genuine HTML DOM extraction with `symfony/dom-crawler`.
 
 ### Final Decision:
-- Routed the scraper to an accessible, real-world scrapable eCommerce store (`scrapingcourse.com/ecommerce` / accessible Shopify storefront HTML) with 188 products, clean DOM structure, and high-resolution images to validate the entire end-to-end pipeline (Go proxy rotation -> Laravel scraping engine -> MySQL upsert -> Next.js polling) until an ethical, compliant method is established to navigate enterprise marketplace anti-bot protections.
+- Routed the scraper to an accessible, real-world scrapable eCommerce store (`scrapingcourse.com/ecommerce` / accessible Shopify storefront HTML) with 188 products, clean DOM structure, and high-resolution images to validate the entire end-to-end pipeline (Go proxy rotation → Laravel scraping engine → MySQL upsert → Next.js polling) until an ethical, compliant method is established to navigate enterprise marketplace anti-bot protections.
+
+---
+
+## Phase 2 — Frontend, Auto-Scraping & Product Accumulation
+
+### Frontend (Next.js)
+- Built `ProductCard` component with image, title, and price display
+- Built `ProductSkeleton` component for loading state placeholder grid
+- Built `Navbar`, `ErrorBanner`, and `EmptyState` shared components
+- Built `/products` page with responsive grid layout and 30-second client-side poll using `setInterval`
+- Configured `next.config.ts` with wildcard `remotePatterns` for both `http` and `https` to allow all image sources from the scraper
+- Added `suppressHydrationWarning` to `<html>` and `<body>` in `app/layout.tsx` to suppress false hydration mismatch warnings caused by browser extensions injecting custom attributes (e.g. `data-gptw`)
+- Cleared boilerplate from `app/page.tsx` — root redirects to `/products`
+- Added `Product` TypeScript type definition in `frontend/types/product.ts`
+
+### Backend — Auto-Scrape on First Request
+- `ProductApiController::index` triggers an immediate `ScraperService::scrape()` call the first time the `/api/products` endpoint is hit with zero rows in the database — bootstraps data without any manual CLI step
+- `ScrapeProducts` command refactored to run as a **continuous 30-second loop by default** (no flags needed); `--once` flag retained for single-run CI/testing scenarios; `--interval` flag for custom cadence
+
+### Backend — Paginated Product Accumulation
+- `ScraperService` refactored from a single-target cascade to a **page-rotating architecture**:
+  - The site exposes 12 catalog pages (~16 products each = 188 total unique products)
+  - Current page pointer persisted in `storage/app/scraper_page.txt` — survives process restarts
+  - Each 30-second scrape cycle advances to the next page (1 → 2 → … → 12 → 1 → …)
+  - `updateOrCreate` on `source_url` unique index ensures **zero duplicates** — only genuinely new products are inserted
+- `ProductApiController::index` changed from `orderByDesc('updated_at')` to `inRandomOrder()` — every API response returns a shuffled product set, giving the frontend natural variety on each 30-second poll
+
+### Developer Experience — `php artisan dev:start`
+- New `DevStart` Artisan command launches both services from a single terminal:
+  1. Spawns `php artisan scrape:products --interval=30` as a **detached background process** (Windows-safe via `cmd /c start /b "" "php" "artisan" ...` with explicit empty title to prevent Windows shell opening `artisan` as a document)
+  2. Starts `php artisan serve` in the foreground
+- `--port` and `--interval` options available for customization
+- Full three-service startup:
+  ```
+  # Terminal 1
+  cd proxy-service && go run main.go
+
+  # Terminal 2  (backend + auto-scraper)
+  cd backend && php artisan dev:start
+
+  # Terminal 3
+  cd frontend && bun dev
+  ```
+
