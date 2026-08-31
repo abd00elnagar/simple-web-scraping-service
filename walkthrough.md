@@ -9,8 +9,15 @@
 - Added technical architecture plan in `backend/docs/plan.md`
 - Created `Product` Eloquent model and migration (`products` table with `source_url` unique index)
 - Ran `php artisan install:api` to scaffold `routes/api.php` and install Laravel Sanctum
-- Created `ProductApiController` with `index` (search, sort, paginate) and `show` endpoints
+- Created `ProductApiController` with `index` (search, sort, paginate) and `show` (with 404 handling)
 - Registered `GET /api/products` and `GET /api/products/{product}` in `routes/api.php`
+- Configured CORS in `config/cors.php` to allow `http://localhost:3000` on all `api/*` routes
+- Upgraded `proxy-service` to serve full browser header sets (`User-Agent`, `Accept`, `Accept-Language`, `Sec-Fetch-Mode`) and rotating proxy labels
+- Implemented `ProxyIdentityClient` to strictly consume identities from `proxy-service` on port 9000
+- Implemented `ScraperService` with `symfony/dom-crawler` parsing and idempotent `updateOrCreate` database persistence
+- Created `ScrapeProducts` Artisan command (`php artisan scrape:products`) with terminal attempt cascade reporting
+- Added automated Pest feature test suite (`ProductApiTest`, `ProxyIdentityClientTest`, `ScraperTest`) with all tests passing
+- Verified live end-to-end scraper execution and database persistence across multiple runs (`proxy-2` -> `proxy-3` -> `proxy-4`)
 
 ## Challenges Faced: Anti-Bot Defenses & Target Resolution
 
