@@ -8,6 +8,9 @@
 - Implemented Go proxy rotation microservice in `proxy-service/main.go` with passing unit tests
 - Added technical architecture plan in `backend/docs/plan.md`
 - Created `Product` Eloquent model and migration (`products` table with `source_url` unique index)
+- Ran `php artisan install:api` to scaffold `routes/api.php` and install Laravel Sanctum
+- Created `ProductApiController` with `index` (search, sort, paginate) and `show` endpoints
+- Registered `GET /api/products` and `GET /api/products/{product}` in `routes/api.php`
 
 ## Challenges Faced: Anti-Bot Defenses & Target Resolution
 
