@@ -54,15 +54,48 @@ A full-stack product scraping pipeline composed of three services that work toge
 
 ```
 simple-web-scraping-service/
+├── docs/             # High-level architecture, implementation, and walkthrough
+│   ├── plan.md
+│   ├── implementation.md
+│   └── walkthrough.md
 ├── backend/          # Laravel 12 API + Scraper engine
 ├── frontend/         # Next.js 15 product browser UI
 ├── proxy-service/    # Go browser-identity rotation microservice
-└── walkthrough.md    # Development journal
+├── scripts/          # Automated setup & concurrent runner scripts
+│   ├── setup.bash    # Cross-platform automated setup script
+│   └── run.bash      # Cross-platform concurrent runner script
+└── package.json      # Root runner configuration
 ```
 
 ---
 
 ## Setup & Running
+
+### Quick Start (Automated Setup)
+
+Run the unified setup script using Bash (Git Bash, WSL, Linux, or macOS):
+
+```bash
+bash scripts/setup.bash
+```
+
+*Or via npm/bun:*
+```bash
+npm run setup
+# or: bun run setup
+```
+
+> **What the setup script does automatically**:
+> 1. Validates required runtimes (`php`, `composer`, `go`, and `bun`/`npm`).
+> 2. Sets up `proxy-service` and checks Go modules.
+> 3. Configures `backend/.env`, installs PHP dependencies, and executes database migrations. If MySQL is not reachable, it prompts to seamlessly switch to SQLite.
+> 4. Configures `frontend/.env.local` and installs dependencies using `bun` (or `npm` fallback).
+
+---
+
+### Manual Setup (Step-by-Step)
+
+If you prefer to configure each service manually, follow the steps below:
 
 ### 1. Go Proxy Service
 
@@ -214,7 +247,30 @@ Navigating to `/` redirects automatically to `/products`.
 
 ## Running All Three Services Together
 
-Open **three terminals**:
+### Option A — Recommended: Single-Command Concurrent Runner
+
+Run all 3 services simultaneously with color-coded, unified logging:
+
+```bash
+bash scripts/run.bash
+```
+
+*Or via Bun / Node:*
+```bash
+bun dev
+# or: npm run dev
+```
+
+This uses `concurrently` to start:
+- `[proxy]` Go microservice on `:9000`
+- `[backend]` Laravel API server + 30s background scraper on `:8000`
+- `[frontend]` Next.js 15 dev server on `:3000`
+
+Press `Ctrl+C` to stop all services simultaneously.
+
+---
+
+### Option B — Run Separately in Three Terminals
 
 ```bash
 # Terminal 1 — Go proxy (browser identity rotation)
@@ -227,12 +283,10 @@ php artisan dev:start
 
 # Terminal 3 — Next.js frontend
 cd frontend
-bun dev
+bun dev # or: npm run dev
 ```
 
-Then open **http://localhost:3000** in your browser.
-
-On the very first request to `/api/products`, if the database is empty, the backend triggers an immediate scrape so you see data straight away. Subsequent scrapes happen automatically every 30 seconds in the background, walking through the 12 catalog pages one per cycle until all ~188 products are accumulated.
+Then open **http://localhost:3000** in your browser. Subsequent scrapes happen automatically every 30 seconds in the background, walking through the 12 catalog pages one per cycle until all ~188 products are accumulated.
 
 ---
 

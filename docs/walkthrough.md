@@ -98,3 +98,24 @@ Structured and populated individual `docs/` folders for all three services:
 ### 3. Automated Test Verification
 - All 9 backend Pest tests passing (`ProductApiTest`, `ProxyIdentityClientTest`, `ScraperTest`).
 - Verified Go microservice tests (`go test ./...`) passing under parallel execution.
+
+---
+
+### 1. Unified Cross-Platform Setup Scripts
+- **`scripts/setup.js` (`npm run setup` / `bun run setup`)**: Cross-platform Node.js automation script verifying PHP (8.2+), Composer (including `composer.bat`), Go (1.21+), and Bun/npm. Installs backend dependencies, runs database migrations with interactive SQLite fallback on failure, installs frontend dependencies, and sets up workspace packages.
+- **`scripts/setup.bash`**: Bash equivalent with matching environment checks and dynamic fallback logic.
+
+### 2. Migration-Driven Database Fallback
+- If `php artisan migrate` fails due to MySQL being unavailable or unconfigured, the setup script prompts the user to switch to SQLite.
+- Upon confirmation, it dynamically updates `backend/.env`, creates `backend/database/database.sqlite`, and retries migrations automatically.
+
+### 3. Unified Concurrent Runner & Error Handling
+- **`scripts/run.bash`**: Validates PHP, Go, and detects `bunx` / `npx`. Launches the Go microservice (`:9000`), Laravel backend + scraper (`:8000`), and Next.js UI (`:3000`) concurrently.
+- **Fail-Fast & Process Termination**: Configured with `--kill-others` (`-k`) and `--kill-others-on-fail`. If any service crashes, encounters a fatal runtime error, or terminates, all other services are immediately stopped and the error is printed to stdout.
+- **Root `package.json`**: Exposes `npm run dev` and `bun dev` with matching fail-safe concurrency configuration.
+
+### 4. Root Documentation Suite (`docs/`)
+- **`docs/plan.md`**: High-level system architecture, multi-tier service topology, resilience matrix, and REST data contracts.
+- **`docs/implementation.md`**: Project directory map, setup script execution lifecycle, concurrent runner mechanics, port allocations, and multi-terminal running instructions.
+
+
