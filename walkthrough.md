@@ -89,8 +89,8 @@ Structured and populated individual `docs/` folders for all three services:
   - `plan.md`: Architectural specification, MySQL schema, API routes, and scraper lifecycle.
   - `implementation.md`: Code-level details of `ScraperService`, `ProxyIdentityClient`, `ProductApiController`, `dev:start`, and Pest tests.
 - **`frontend/docs/`**:
-  - `plan.md`: Next.js 15 App Router architecture, component tree, and polling design.
-  - `implementation.md`: 30-second polling cycle with countdown ticker, Tailwind styling, remote image configuration, and Bun dev workflow.
+  - `plan.md`: Next.js 15 App Router architecture, backend-driven search/sort query integration, top pagination design, and image ratio handling.
+  - `implementation.md`: 30-second polling cycle with countdown ticker, 400ms debounced search, `aspect-square` + `object-contain` image styling, top/bottom pagination, Tailwind styling, and Bun dev workflow.
 - **`proxy-service/docs/`**:
   - `plan.md`: Go microservice architecture, 5 proxy labels, and 10 browser fingerprint profiles.
   - `implementation.md`: Thread-safe `sync.Mutex` round-robin rotator, HTTP endpoints, and concurrency unit test suite.

@@ -10,12 +10,12 @@ frontend/
 │   ├── layout.tsx          # Root HTML layout with viewport settings
 │   ├── page.tsx            # Redirects "/" to "/products"
 │   └── products/
-│       └── page.tsx        # Main products view with 30s polling logic
+│       └── page.tsx        # Main products view with backend queries, debounce & pagination
 ├── components/
 │   ├── EmptyState.tsx      # Displayed when DB contains zero records
 │   ├── ErrorBanner.tsx     # Displayed when backend API is unreachable
 │   ├── Navbar.tsx          # Header with live ticker & manual refresh button
-│   ├── ProductCard.tsx     # Responsive product card
+│   ├── ProductCard.tsx     # Responsive product card with aspect-square object-contain image
 │   └── ProductSkeleton.tsx # Skeleton placeholder during initial loading
 ├── docs/
 │   ├── implementation.md   # Implementation documentation (this file)
@@ -31,25 +31,84 @@ frontend/
 ## 2. Core Components & Logic
 
 ### 2.1 Product Catalog View (`app/products/page.tsx`)
-- Fetches data on initial component mount via `fetchProducts()`.
-- Implements two timers in `useEffect`:
-  1. `fetchInterval`: Triggers `fetchProducts()` every `30 * 1000` ms (30 seconds).
-  2. `countdownInterval`: Decrements `secondsRemaining` every 1000 ms (1 second) for UI feedback.
-- Cleans up both intervals on unmount to prevent memory leaks.
-- Handles empty, loading, error, and filtered states.
+
+#### Backend-Integrated Search & Sort
+- All filtering and sorting is handled by passing query parameters directly to the Laravel backend API:
+```ts
+function buildApiParams(search: string, sort: SortOption): URLSearchParams {
+  const params = new URLSearchParams();
+  if (search.trim()) {
+    params.set("search", search.trim());
+  }
+  if (sort === "price-asc") params.set("sort_price", "asc");
+  else if (sort === "price-desc") params.set("sort_price", "desc");
+  else if (sort === "newest") params.set("sort_date", "desc");
+  // "default" sends no sort params → backend applies inRandomOrder()
+  return params;
+}
+```
+
+#### Search Debounce (400ms)
+- User typing in the search field is debounced using `useRef` timer (400ms), preventing a flood of API requests on each keystroke:
+```ts
+const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+const handleSearchChange = (value: string) => {
+  setSearchInput(value);
+  if (debounceTimer.current) clearTimeout(debounceTimer.current);
+  debounceTimer.current = setTimeout(() => {
+    setActiveSearch(value);
+  }, 400);
+};
+```
+
+#### Prominent Top Pagination
+- Defaults to **30 items per page** (`itemsPerPage = 30`).
+- Placed directly above the product card grid so users can navigate pages without scrolling through cards.
+- A mirrored pagination bar is rendered at the bottom with smooth `window.scrollTo({ top: 0, behavior: "smooth" })`.
+- Includes ellipsis formatting for large page collections (`renderPageNumbers()`).
+- Automatically resets `currentPage` to 1 whenever search query, sort order, or items-per-page change.
+
+#### Auto-Polling Timers (30s Cycle)
+- Two intervals started in `useEffect`, both cleared on unmount:
+  1. `fetchInterval`: Re-fetches current catalog query from API every 30,000 ms.
+  2. `countdownInterval`: Decrements `secondsRemaining` in 1-second ticks for the live countdown indicator.
+
+---
 
 ### 2.2 Product Card (`components/ProductCard.tsx`)
-- Displays product card with:
-  - **Image**: Renders `image_url` with graceful fallback placeholder when null/broken.
-  - **Title**: Formatted title with hover transition.
-  - **Price**: Formatted currency with 2 decimal points.
-  - **Source Link**: Direct link to the scraped source page.
 
-### 2.3 Navbar & Live Indicator (`components/Navbar.tsx`)
-- Shows active catalog item count.
-- Includes a live polling status indicator:
-  - Pulses green with countdown text (e.g. `Auto-refresh in 28s`).
-  - Provides a manual "Refresh" button allowing instant re-fetch.
+#### Image Aspect Ratio & Size Handling
+To support diverse eCommerce image ratios (tall apparel, wide bags, square product shots) without distortion or clipping:
+```tsx
+<div className="relative aspect-square w-full overflow-hidden bg-zinc-50 dark:bg-zinc-800/40">
+  <Image
+    src={product.image_url}
+    alt={product.title}
+    fill
+    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+    className="object-contain p-3 transition-transform duration-500 ease-out group-hover:scale-105"
+    unoptimized
+  />
+</div>
+```
+- **`aspect-square`**: Provides a stable, uniform bounding box across all grid items.
+- **`object-contain p-3`**: Ensures the full product silhouette is visible with generous edge padding.
+- **`group-hover:scale-105`**: Provides subtle micro-interaction zoom without altering layout.
+
+#### Clean Typography & Details
+- Displays product title with 2-line clamping (`line-clamp-2`).
+- Price badge positioned in top-right corner with `bg-emerald-600` / `bg-emerald-500` pill.
+- Card footer displays internal `ID #N` and a direct "View Source" external link.
+
+---
+
+### 2.3 Navbar (`components/Navbar.tsx`)
+- Minimalist header with compact `S` logo mark and "Scraper Dashboard" title.
+- Total product count badge (`188 Products`).
+- Live pulse indicator showing `Auto-sync in 28s` (or `Paused` on error).
+- Manual "Refresh" button triggering immediate API fetch with spinning icon animation.
+
+---
 
 ### 2.4 Remote Image Configuration (`next.config.ts`)
 Configured to allow all remote domains for product image rendering without hostname restrictions:

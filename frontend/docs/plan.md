@@ -1,12 +1,13 @@
 # Frontend Architecture & Technical Specification
 
 ## 1. Overview
-The `frontend` is a Next.js 15 (React 19) application responsible for:
-1. Providing a user interface at the `/products` route.
+The `frontend` is a Next.js 15 (React 19) application built with TypeScript and Tailwind CSS. It is responsible for:
+1. Providing an interactive catalog interface at the `/products` route (with root `/` auto-redirecting to `/products`).
 2. Fetching stored eCommerce product data from the Laravel REST API (`/api/products`).
-3. Displaying products in a responsive card grid showing title, price, and image.
-4. Refreshing the catalog automatically every 30 seconds via client-side polling.
-5. Providing user controls: live polling status countdown, search filtering, and price/date sorting.
+3. Delegating search and sorting operations directly to backend query parameters (`?search=`, `?sort_price=`, `?sort_date=`).
+4. Displaying products in a responsive card grid showing title, price, image, and source link with robust handling for varied image aspect ratios.
+5. Refreshing the catalog automatically every 30 seconds via client-side polling with a visual countdown ticker.
+6. Providing prominent top-level pagination controls (defaulting to 30 items per page) to eliminate unnecessary scrolling.
 
 ---
 
@@ -14,45 +15,62 @@ The `frontend` is a Next.js 15 (React 19) application responsible for:
 - **Framework**: Next.js 15 (App Router)
 - **Library**: React 19 / TypeScript
 - **Styling**: Tailwind CSS
-- **Package Manager / Runtime**: Bun
+- **Package Manager / Runtime**: Bun (Node.js compatible)
 
 ---
 
 ## 3. UI Component Architecture
 
 ```
-app/
-├── layout.tsx         # Root layout with metadata and dark/light theme classes
-├── page.tsx           # Root redirect to /products
-└── products/
-    └── page.tsx       # Main catalog page with polling hook, state, search & sorting
-components/
-├── Navbar.tsx         # Top navigation bar with total counter and 30s countdown badge
-├── ProductCard.tsx    # Responsive card rendering product image, title, price, link
-├── ProductSkeleton.tsx# Animated loading skeleton for initial data fetch
-├── ErrorBanner.tsx    # Actionable error banner with retry button
-└── EmptyState.tsx     # Graceful zero-products display with manual trigger
-types/
-└── product.ts         # TypeScript definitions for Product and API response schemas
+frontend/
+├── app/
+│   ├── favicon.ico
+│   ├── globals.css         # Tailwind directives and base styling
+│   ├── layout.tsx          # Root layout with dark/light background classes
+│   ├── page.tsx            # Root redirect to /products
+│   └── products/
+│       └── page.tsx        # Main catalog page: API queries, debounce, pagination, layout
+├── components/
+│   ├── EmptyState.tsx      # Graceful zero-products display with retry button
+│   ├── ErrorBanner.tsx     # Actionable error banner with backend troubleshooting tips
+│   ├── Navbar.tsx          # Minimalist header with live sync countdown & manual refresh
+│   ├── ProductCard.tsx     # Responsive card with square container & object-contain image
+│   └── ProductSkeleton.tsx # Animated loading skeleton for initial data fetch
+├── docs/
+│   ├── implementation.md   # Detailed implementation documentation
+│   └── plan.md             # Architecture design document (this file)
+├── types/
+│   └── product.ts          # TypeScript interfaces for Product and API responses
+├── next.config.ts          # Next.js image configuration (wildcard remote patterns)
+└── package.json
 ```
 
 ---
 
-## 4. Polling & State Management Strategy
+## 4. Search, Sort, and Polling Architecture
 
-### 4.1 30-Second Refresh Cycle
+### 4.1 Backend-Driven Search & Sorting
+The frontend delegates filtering and sorting to the Laravel backend API to ensure optimal database querying:
+- **Search (`?search=<query>`)**: Debounced by 400ms on the client. Searches against `title` and `source_url` in MySQL using `LIKE %query%`.
+- **Price Sort (`?sort_price=asc|desc`)**: Orders results by price numerically.
+- **Date Sort (`?sort_date=desc`)**: Orders results by `created_at` descending.
+- **Default Sort**: When no search or explicit sort is specified, backend returns products in randomized order (`inRandomOrder()`), providing dynamic variety on every 30-second poll cycle.
+
+### 4.2 30-Second Refresh Cycle
 - `POLLING_INTERVAL_SECONDS = 30` (30,000 ms).
 - Managed using `setInterval` inside `useEffect` in `app/products/page.tsx`.
-- Includes a 1-second interval ticker updating `secondsRemaining` to provide visual countdown feedback on the Navbar badge.
-- Re-fetches with `{ cache: 'no-store' }` to ensure fresh responses bypassing Next.js client router caches.
+- Accompanied by a 1-second interval ticker updating `secondsRemaining` displayed in the Navbar badge.
+- Polling requests are executed with `{ cache: 'no-store' }` to bypass Next.js client caching.
 
-### 4.2 Client-Side Filtering
-- `searchQuery`: Live regex-free search across title and source URL.
-- `sortBy`: Offers `default`, `price-asc`, `price-desc`, and `newest` ordering.
+### 4.3 Top Pagination Architecture
+- **Default Items Per Page**: 30 products (`itemsPerPage = 30`).
+- **Placement**: Prominently placed directly above the card grid (and mirrored at the bottom) so users can change pages immediately without scrolling through cards.
+- **Configurable Densities**: Dropdown options for `12`, `24`, `30`, and `60` items per page.
+- **Pagination State Reset**: Automatically resets `currentPage` to 1 whenever search, sort, or items-per-page change.
 
 ---
 
-## 5. Environment & Backend Integration
-- `NEXT_PUBLIC_API_URL`: Points to the Laravel API (defaults to `http://localhost:8000/api`).
-- Configured in `frontend/.env.local`.
-- Works seamlessly with backend's `php artisan dev:start` single-command server launcher.
+## 5. Image & Card Ratio Handling
+- Scraped images from external eCommerce sources have arbitrary aspect ratios (tall portrait leggings, wide landscape accessories, square shirts).
+- To prevent cropping or distorted zooming, cards use an **`aspect-square` container with `object-contain p-3`**.
+- This guarantees that 100% of the product image is visible with neutral letterboxing that integrates seamlessly into both dark and light modes.
