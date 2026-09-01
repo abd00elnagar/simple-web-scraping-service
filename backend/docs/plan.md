@@ -57,10 +57,10 @@ The `backend` is a Laravel 12 application responsible for:
 ### 5.1 List Products: `GET /api/products`
 - **Controller**: `App\Http\Controllers\ProductApiController@index`
 - **Behavior**: Strictly read-only.
-- **Default (Bare)**: Returns all stored products with total count metadata.
+- **Default (Bare)**: Returns all stored products with total count metadata, ordered randomly (`inRandomOrder()`) to provide fresh variety across 30-second poll cycles.
 - **Optional Query Parameters**:
   - `page` (int) & `per_page` (int): Enables pagination.
-  - `search` (string): Filters by title or source URL.
+  - `search` (string): Filters by title or source URL (disables randomization, orders by `id desc`).
   - `sort_price` (`asc`|`desc`): Sorts by price.
   - `sort_date` (`asc`|`desc`): Sorts by creation date.
 

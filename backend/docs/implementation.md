@@ -70,11 +70,11 @@ backend/
 ### 2.4 REST API Controller (`ProductApiController.php`)
 - **Read-Only**: Strictly queries and returns data without background scraping side-effects.
 - **Bare Request (`GET /api/products`)**:
-  Returns all products in database with total count metadata.
+  Returns all products in the database with `{ "meta": { "total": <count> } }`. Shuffles the output using `$query->inRandomOrder()` when no search or explicit sort is present, ensuring fresh items on successive 30-second poll cycles.
 - **Paginated Request (`GET /api/products?page=1&per_page=20`)**:
-  Returns paginated chunk with metadata (`current_page`, `last_page`, `per_page`, `total`).
+  Returns paginated chunk with full pagination metadata (`current_page`, `from`, `last_page`, `per_page`, `to`, `total`).
 - **Filtering & Sorting**:
-  Supports `search`, `sort_price=asc|desc`, and `sort_date=asc|desc`.
+  Supports `search` (disables random order, defaults to `id desc`), `sort_price=asc|desc`, and `sort_date=asc|desc`.
 
 ---
 

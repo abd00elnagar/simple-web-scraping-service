@@ -81,7 +81,7 @@
 ### 1. Database & REST API Refinement
 - **MySQL Default**: Configured `backend/.env` and `backend/.env.example` to default to MySQL (`DB_CONNECTION=mysql`, `DB_DATABASE=scraper_service_backend`), with SQLite documented as an optional zero-config alternative.
 - **Pure Read-Only API**: Removed any scraping side-effects from `ProductApiController@index`. GET `/api/products` is strictly read-only and idempotent.
-- **Bare Endpoint Full Data**: `GET /api/products` without query parameters returns the complete stored product collection (`total` count metadata). Optional pagination remains available via `?page=1&per_page=20`.
+- **Bare Endpoint Full Data**: `GET /api/products` without query parameters returns the complete stored product collection (`total` count metadata) shuffled via `inRandomOrder()` for natural variety across 30-second poll cycles. Optional pagination (`?page=1&per_page=20`) and search/sort filters remain supported.
 
 ### 2. Comprehensive Documentation Suite
 Structured and populated individual `docs/` folders for all three services:
