@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
+import { useState } from "react";
 import type { Product } from "@/types/product";
 
 interface ProductCardProps {
@@ -12,7 +12,9 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [imageError, setImageError] = useState(false);
 
   const formattedPrice =
-    product.price !== null && product.price !== undefined && product.price !== ""
+    product.price !== null &&
+    product.price !== undefined &&
+    product.price !== ""
       ? `$${Number(product.price).toFixed(2)}`
       : "N/A";
 

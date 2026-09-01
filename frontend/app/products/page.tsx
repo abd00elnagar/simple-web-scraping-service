@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Product, ProductsApiResponse } from "@/types/product";
 import EmptyState from "@/components/EmptyState";
 import ErrorBanner from "@/components/ErrorBanner";
 import Navbar from "@/components/Navbar";
 import ProductCard from "@/components/ProductCard";
 import ProductSkeleton from "@/components/ProductSkeleton";
+import type { Product, ProductsApiResponse } from "@/types/product";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -35,12 +35,12 @@ export default function ProductsPage() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number>(
-    POLLING_INTERVAL_SECONDS
+    POLLING_INTERVAL_SECONDS,
   );
 
   // --- Filter state (drives the API call) ---
-  const [searchInput, setSearchInput] = useState<string>("");        // raw input value
-  const [activeSearch, setActiveSearch] = useState<string>("");     // debounced, sent to API
+  const [searchInput, setSearchInput] = useState<string>(""); // raw input value
+  const [activeSearch, setActiveSearch] = useState<string>(""); // debounced, sent to API
   const [sortBy, setSortBy] = useState<SortOption>("default");
 
   // --- Pagination (client-side slice of the API response) ---
@@ -72,7 +72,7 @@ export default function ProductsPage() {
 
         if (!response.ok) {
           throw new Error(
-            `API returned HTTP ${response.status} (${response.statusText})`
+            `API returned HTTP ${response.status} (${response.statusText})`,
           );
         }
 
@@ -91,7 +91,7 @@ export default function ProductsPage() {
         setSecondsRemaining(POLLING_INTERVAL_SECONDS);
       }
     },
-    [activeSearch, sortBy]
+    [activeSearch, sortBy],
   );
 
   // Re-fetch when search or sort changes (debounced search already accounted for)
@@ -110,7 +110,7 @@ export default function ProductsPage() {
 
     const countdownInterval = setInterval(() => {
       setSecondsRemaining((prev) =>
-        prev > 1 ? prev - 1 : POLLING_INTERVAL_SECONDS
+        prev > 1 ? prev - 1 : POLLING_INTERVAL_SECONDS,
       );
     }, 1000);
 
@@ -155,7 +155,7 @@ export default function ProductsPage() {
         totalPages - 3,
         totalPages - 2,
         totalPages - 1,
-        totalPages
+        totalPages,
       );
     } else {
       pages.push(
@@ -165,7 +165,7 @@ export default function ProductsPage() {
         validCurrentPage,
         validCurrentPage + 1,
         "...",
-        totalPages
+        totalPages,
       );
     }
 
