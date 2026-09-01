@@ -4,9 +4,12 @@
 
 ```
 simple-web-scraping-service/
-├── docs/                        # Root architecture and implementation docs
-│   ├── plan.md                  # High-level architecture & data contracts
-│   ├── implementation.md        # Orchestration, setup scripts, and environment details (this file)
+├── docs/                        # Architecture, API, scraper, and setup docs
+│   ├── plan.md                  # High-level architecture & service responsibilities
+│   ├── implementation.md        # Orchestration, setup scripts, and workflow (this file)
+│   ├── api.md                   # REST API specification & JSON response contracts
+│   ├── scraper.md               # Scraper architecture, pointer rotation & anti-bot research
+│   ├── environment.md           # Environment variables & database configuration
 │   └── walkthrough.md           # Development chronicle and challenge log
 ├── backend/                     # Laravel 12 API & Scraping Engine
 │   ├── app/                     # Controllers, Models, Services, Console Commands
