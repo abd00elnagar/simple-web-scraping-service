@@ -7,8 +7,8 @@ frontend/
 ├── app/
 │   ├── favicon.ico
 │   ├── globals.css         # Tailwind directives and base styling
-│   ├── layout.tsx          # Root HTML layout with viewport settings
-│   ├── page.tsx            # Redirects "/" to "/products"
+│   ├── layout.tsx          # Root layout with suppressHydrationWarning
+│   ├── page.tsx            # Renders ProductsPage component
 │   └── products/
 │       └── page.tsx        # Main products view with backend queries, debounce & pagination
 ├── components/
@@ -22,6 +22,7 @@ frontend/
 │   └── plan.md             # Architecture design document
 ├── types/
 │   └── product.ts          # Type interfaces for Product and API structures
+├── biome.json              # Biome linter & formatter configuration
 ├── next.config.ts          # Next.js config (wildcard remote image patterns)
 └── package.json
 ```
@@ -49,7 +50,7 @@ function buildApiParams(search: string, sort: SortOption): URLSearchParams {
 ```
 
 #### Search Debounce (400ms)
-- User typing in the search field is debounced using `useRef` timer (400ms), preventing a flood of API requests on each keystroke:
+- User typing in the search field is debounced using a `useRef` timer (400ms), preventing unnecessary API requests on intermediate keystrokes:
 ```ts
 const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 const handleSearchChange = (value: string) => {
@@ -103,9 +104,9 @@ To support diverse eCommerce image ratios (tall apparel, wide bags, square produ
 ---
 
 ### 2.3 Navbar (`components/Navbar.tsx`)
-- Minimalist header with compact `S` logo mark and "Scraper Dashboard" title.
-- Total product count badge (`188 Products`).
-- Live pulse indicator showing `Auto-sync in 28s` (or `Paused` on error).
+- Minimalist header with "Scraper Dashboard" title.
+- Total product count badge (`N Products`).
+- Live pulse indicator showing `Auto-sync in Ns` (or `Paused` on error).
 - Manual "Refresh" button triggering immediate API fetch with spinning icon animation.
 
 ---
@@ -130,13 +131,13 @@ const nextConfig: NextConfig = {
 ### Install Dependencies:
 ```bash
 bun install
-# or npm install
+# or: npm install
 ```
 
 ### Start Development Server:
 ```bash
 bun dev
-# or npm run dev
+# or: npm run dev
 ```
 
 App runs on **http://localhost:3000** and connects to the backend on **http://localhost:8000/api**.

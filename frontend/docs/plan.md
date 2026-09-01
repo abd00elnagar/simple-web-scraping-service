@@ -1,8 +1,8 @@
 # Frontend Architecture & Technical Specification
 
 ## 1. Overview
-The `frontend` is a Next.js 15 (React 19) application built with TypeScript and Tailwind CSS. It is responsible for:
-1. Providing an interactive catalog interface at the `/products` route (with root `/` auto-redirecting to `/products`).
+The `frontend` is a Next.js 16 (React 19) application built with TypeScript and Tailwind CSS v4. It is responsible for:
+1. Providing an interactive catalog interface at the `/products` route (with root `/` rendering the catalog).
 2. Fetching stored eCommerce product data from the Laravel REST API (`/api/products`).
 3. Delegating search and sorting operations directly to backend query parameters (`?search=`, `?sort_price=`, `?sort_date=`).
 4. Displaying products in a responsive card grid showing title, price, image, and source link with robust handling for varied image aspect ratios.
@@ -12,10 +12,11 @@ The `frontend` is a Next.js 15 (React 19) application built with TypeScript and 
 ---
 
 ## 2. Technical Stack
-- **Framework**: Next.js 15 (App Router)
-- **Library**: React 19 / TypeScript
-- **Styling**: Tailwind CSS
+- **Framework**: Next.js 16 (`16.3.3`, App Router)
+- **Library**: React 19 (`19.2.8`) / TypeScript 5
+- **Styling**: Tailwind CSS v4 (`@tailwindcss/postcss: ^4`)
 - **Package Manager / Runtime**: Bun (Node.js compatible)
+- **Code Quality**: Biome (`biome.json`)
 
 ---
 
@@ -26,15 +27,15 @@ frontend/
 ├── app/
 │   ├── favicon.ico
 │   ├── globals.css         # Tailwind directives and base styling
-│   ├── layout.tsx          # Root layout with dark/light background classes
-│   ├── page.tsx            # Root redirect to /products
+│   ├── layout.tsx          # Root layout with suppressHydrationWarning
+│   ├── page.tsx            # Root view rendering ProductsPage
 │   └── products/
 │       └── page.tsx        # Main catalog page: API queries, debounce, pagination, layout
 ├── components/
 │   ├── EmptyState.tsx      # Graceful zero-products display with retry button
-│   ├── ErrorBanner.tsx     # Actionable error banner with backend troubleshooting tips
+│   ├── ErrorBanner.tsx     # Actionable error banner with retry option
 │   ├── Navbar.tsx          # Minimalist header with live sync countdown & manual refresh
-│   ├── ProductCard.tsx     # Responsive card with square container & object-contain image
+│   ├── ProductCard.tsx     # Responsive card with aspect-square container & object-contain image
 │   └── ProductSkeleton.tsx # Animated loading skeleton for initial data fetch
 ├── docs/
 │   ├── implementation.md   # Detailed implementation documentation
@@ -60,7 +61,7 @@ The frontend delegates filtering and sorting to the Laravel backend API to ensur
 - `POLLING_INTERVAL_SECONDS = 30` (30,000 ms).
 - Managed using `setInterval` inside `useEffect` in `app/products/page.tsx`.
 - Accompanied by a 1-second interval ticker updating `secondsRemaining` displayed in the Navbar badge.
-- Polling requests are executed with `{ cache: 'no-store' }` to bypass Next.js client caching.
+- Polling requests are executed with `{ cache: 'no-store' }` to bypass client caching.
 
 ### 4.3 Top Pagination Architecture
 - **Default Items Per Page**: 30 products (`itemsPerPage = 30`).
@@ -71,6 +72,6 @@ The frontend delegates filtering and sorting to the Laravel backend API to ensur
 ---
 
 ## 5. Image & Card Ratio Handling
-- Scraped images from external eCommerce sources have arbitrary aspect ratios (tall portrait leggings, wide landscape accessories, square shirts).
-- To prevent cropping or distorted zooming, cards use an **`aspect-square` container with `object-contain p-3`**.
+- Scraped images from external eCommerce sources have arbitrary aspect ratios (tall portrait apparel, wide accessories, square product shots).
+- To prevent cropping or distorted zooming, cards use an **`aspect-square` container with `object-contain p-3`** and `unoptimized` loading with wildcard remote patterns.
 - This guarantees that 100% of the product image is visible with neutral letterboxing that integrates seamlessly into both dark and light modes.
