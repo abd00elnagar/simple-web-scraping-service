@@ -24,7 +24,7 @@ The `proxy-service` is a lightweight, standalone Golang microservice running on 
 4. Firefox on Linux (Ubuntu/Debian)
 5. Safari on macOS Sonoma
 6. Safari on iPhone (iOS 17)
-7. Chrome on Android (Pixel 8)
+7. Chrome on Android (Pixel 8 Pro)
 8. Microsoft Edge on Windows 11
 9. Opera on Windows 10
 10. Firefox on macOS
@@ -34,6 +34,7 @@ The `proxy-service` is a lightweight, standalone Golang microservice running on 
 ## 4. API Specification
 
 ### Endpoint: `GET /next-identity`
+- **Method**: `GET` (other HTTP methods return `405 Method Not Allowed`)
 - **Response**: `200 OK (application/json)`
 ```json
 {

@@ -75,5 +75,5 @@ Starts on `http://localhost:9000`.
 go test -v ./...
 ```
 Tests:
-- Correct sequential round-robin rotation.
-- Concurrency safety under high parallel goroutine load.
+- Correct sequential round-robin rotation (`TestNextIdentityHandler`).
+- Method validation rejecting non-GET methods with 405 (`TestMethodNotAllowed`).
