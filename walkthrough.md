@@ -19,11 +19,13 @@
 - Added automated Pest feature test suite (`ProductApiTest`, `ProxyIdentityClientTest`, `ScraperTest`) with all tests passing
 - Verified live end-to-end scraper execution and database persistence across multiple runs (`proxy-2` -> `proxy-3` -> `proxy-4`)
 
+---
+
 ## Challenges Faced: Anti-Bot Defenses & Target Resolution
 
 ### Issues Encountered During Target Testing:
 - **Jumia Egypt**: Blocked server-side Guzzle requests with `HTTP 403 Forbidden` due to Cloudflare JavaScript challenges (`challenges.cloudflare.com`).
-- **Amazon Egypt**: Researched real browser header sets via Grok and passed complete browser fingerprints (`User-Agent`, `Accept`, `Accept-Language`, `Sec-Fetch-Mode`), but encountered silent TCP connection timeouts caused by enterprise firewall blocking. Kept in scraper cascade with a 5s fast-fail.
+- **Amazon Egypt**: Researched real browser header sets and passed complete browser fingerprints (`User-Agent`, `Accept`, `Accept-Language`, `Sec-Fetch-Mode`), but encountered silent TCP connection timeouts caused by enterprise firewall blocking. Kept in scraper cascade with a 5s fast-fail.
 - **Noon & eBay**: Evaluated large-scale eCommerce targets — Noon requires full client-side SPA rendering with WAF protection; eBay immediately returned `HTTP 403` with Akamai Bot Manager reference errors.
 - **Ethical & Scope Boundary**: Ruled out stealth headless browser automation, residential IP networks, and TLS fingerprint spoofing due to Terms of Service violations and disproportionate trial scope. Also ruled out querying direct `/products.json` endpoints to adhere strictly to the requirement of testing genuine HTML DOM extraction with `symfony/dom-crawler`.
 
@@ -45,8 +47,8 @@
 - Added `Product` TypeScript type definition in `frontend/types/product.ts`
 
 ### Backend — Auto-Scrape on First Request
-- `ProductApiController::index` triggers an immediate `ScraperService::scrape()` call the first time the `/api/products` endpoint is hit with zero rows in the database — bootstraps data without any manual CLI step
-- `ScrapeProducts` command refactored to run as a **continuous 30-second loop by default** (no flags needed); `--once` flag retained for single-run CI/testing scenarios; `--interval` flag for custom cadence
+- Initial prototype included auto-scrape on empty DB; refactored in Phase 3 to maintain pure REST read-only idempotency.
+- `ScrapeProducts` command refactored to run as a **continuous 30-second loop by default** (no flags needed); `--once` flag retained for single-run CI/testing scenarios; `--interval` flag for custom cadence.
 
 ### Backend — Paginated Product Accumulation
 - `ScraperService` refactored from a single-target cascade to a **page-rotating architecture**:
@@ -54,22 +56,45 @@
   - Current page pointer persisted in `storage/app/scraper_page.txt` — survives process restarts
   - Each 30-second scrape cycle advances to the next page (1 → 2 → … → 12 → 1 → …)
   - `updateOrCreate` on `source_url` unique index ensures **zero duplicates** — only genuinely new products are inserted
-- `ProductApiController::index` changed from `orderByDesc('updated_at')` to `inRandomOrder()` — every API response returns a shuffled product set, giving the frontend natural variety on each 30-second poll
 
 ### Developer Experience — `php artisan dev:start`
-- New `DevStart` Artisan command launches both services from a single terminal:
+- `DevStart` Artisan command launches both services from a single terminal:
   1. Spawns `php artisan scrape:products --interval=30` as a **detached background process** (Windows-safe via `cmd /c start /b "" "php" "artisan" ...` with explicit empty title to prevent Windows shell opening `artisan` as a document)
   2. Starts `php artisan serve` in the foreground
 - `--port` and `--interval` options available for customization
 - Full three-service startup:
-  ```
-  # Terminal 1
+  ```bash
+  # Terminal 1 — Go Proxy Microservice
   cd proxy-service && go run main.go
 
-  # Terminal 2  (backend + auto-scraper)
+  # Terminal 2 — Backend API + Background Scraper
   cd backend && php artisan dev:start
 
-  # Terminal 3
+  # Terminal 3 — Next.js Frontend
   cd frontend && bun dev
   ```
 
+---
+
+## Phase 3 — Spec Compliance Audit & Documentation Suite
+
+### 1. Database & REST API Refinement
+- **MySQL Default**: Configured `backend/.env` and `backend/.env.example` to default to MySQL (`DB_CONNECTION=mysql`, `DB_DATABASE=scraper_service_backend`), with SQLite documented as an optional zero-config alternative.
+- **Pure Read-Only API**: Removed any scraping side-effects from `ProductApiController@index`. GET `/api/products` is strictly read-only and idempotent.
+- **Bare Endpoint Full Data**: `GET /api/products` without query parameters returns the complete stored product collection (`total` count metadata). Optional pagination remains available via `?page=1&per_page=20`.
+
+### 2. Comprehensive Documentation Suite
+Structured and populated individual `docs/` folders for all three services:
+- **`backend/docs/`**:
+  - `plan.md`: Architectural specification, MySQL schema, API routes, and scraper lifecycle.
+  - `implementation.md`: Code-level details of `ScraperService`, `ProxyIdentityClient`, `ProductApiController`, `dev:start`, and Pest tests.
+- **`frontend/docs/`**:
+  - `plan.md`: Next.js 15 App Router architecture, component tree, and polling design.
+  - `implementation.md`: 30-second polling cycle with countdown ticker, Tailwind styling, remote image configuration, and Bun dev workflow.
+- **`proxy-service/docs/`**:
+  - `plan.md`: Go microservice architecture, 5 proxy labels, and 10 browser fingerprint profiles.
+  - `implementation.md`: Thread-safe `sync.Mutex` round-robin rotator, HTTP endpoints, and concurrency unit test suite.
+
+### 3. Automated Test Verification
+- All 9 backend Pest tests passing (`ProductApiTest`, `ProxyIdentityClientTest`, `ScraperTest`).
+- Verified Go microservice tests (`go test ./...`) passing under parallel execution.

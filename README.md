@@ -108,23 +108,23 @@ php artisan key:generate
 
 #### Database Configuration
 
-The app uses **SQLite by default** (zero config — the file is auto-created).
-
-To use **MySQL** instead, edit `backend/.env`:
+The application is configured to use **MySQL by default**:
 
 ```env
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=scraping_service
+DB_DATABASE=scraper_service_backend
 DB_USERNAME=root
-DB_PASSWORD=your_password
+DB_PASSWORD=
 ```
 
-Then create the database manually:
+Create the database in MySQL (if not already existing):
 ```sql
-CREATE DATABASE scraping_service CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS scraper_service_backend CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
+
+> **Optional Alternative (SQLite)**: If you prefer zero-config SQLite, change `DB_CONNECTION=sqlite` and `DB_DATABASE=database/database.sqlite` in `backend/.env`.
 
 #### Run migrations
 

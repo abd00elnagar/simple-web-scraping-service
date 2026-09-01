@@ -3,17 +3,19 @@
 ## 1. Overview
 The `backend` is a Laravel 12 application responsible for:
 1. Managing the `Product` data model and MySQL database persistence.
-2. Interfacing with `proxy-service` to retrieve rotated browser identities.
-3. Scraping eCommerce product data through an Artisan command (`php artisan scrape:products`).
-4. Exposing a clean, read-only REST API (`GET /api/products`) with CORS enabled for the Next.js frontend.
+2. Interfacing with `proxy-service` to retrieve rotating browser fingerprint identities and proxy labels.
+3. Scraping eCommerce product data through an Artisan command (`php artisan scrape:products`) with page-rotation and deduplication.
+4. Exposing a clean, read-only REST API (`GET /api/products` and `GET /api/products/{id}`) with CORS enabled for the Next.js frontend.
+5. Providing a developer experience command (`php artisan dev:start`) to launch both the background scraping worker and the HTTP server simultaneously.
 
 ---
 
 ## 2. Technical Stack
-- **Framework**: Laravel 12 (PHP 8.3+)
-- **Database**: MySQL (with SQLite support for local/testing environments)
+- **Framework**: Laravel 12 (PHP 8.3+ / 8.4)
+- **Database**: MySQL 8.x / MariaDB (default) with optional SQLite support
 - **HTML Parsing**: `symfony/dom-crawler` and `symfony/css-selector`
 - **HTTP Client**: Laravel `Http` (Guzzle wrapper)
+- **Testing**: Pest PHP test framework
 
 ---
 
@@ -23,76 +25,51 @@ The `backend` is a Laravel 12 application responsible for:
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | BIGINT UNSIGNED | PRIMARY KEY, AUTO_INCREMENT | Unique internal ID |
-| `title` | VARCHAR(255) | NOT NULL | Product title/name |
-| `price` | DECIMAL(10,2) | NULLABLE | Parsed numerical product price |
-| `image_url` | VARCHAR(255) | NULLABLE | Absolute image URL |
-| `source_url` | VARCHAR(255) | UNIQUE, NOT NULL | Canonical product source URL (used for deduplication/upsert) |
+| `title` | VARCHAR(255) | NOT NULL | Product title / name |
+| `price` | DECIMAL(10,2) | NULLABLE | Parsed numerical price |
+| `image_url` | VARCHAR(255) | NULLABLE | Absolute image asset URL |
+| `source_url` | VARCHAR(255) | UNIQUE, NOT NULL | Canonical source URL (used for deduplication / idempotent upsert) |
 | `created_at` | TIMESTAMP | NULLABLE | Record creation timestamp |
 | `updated_at` | TIMESTAMP | NULLABLE | Record last update timestamp |
 
-### 3.2 `Product` Model
-- Namespace: `App\Models\Product`
-- `$fillable`: `['title', 'price', 'image_url', 'source_url']`
-- `$casts`: `['price' => 'decimal:2']`
+### 3.2 `Product` Eloquent Model
+- **File**: `app/Models/Product.php`
+- **Fillable fields**: `['title', 'price', 'image_url', 'source_url']`
+- **Casts**: `['price' => 'decimal:2']`
 
 ---
 
-## 4. Anti-Bot Investigation & Target Selection
+## 4. Scraping Engine Architecture
 
-During development, multiple eCommerce platforms were tested against server-side HTTP requests using full browser fingerprint headers:
+### 4.1 Browser Identity Rotation
+- The scraper communicates with the Go `proxy-service` at `http://localhost:9000/next-identity` before making catalog requests.
+- Rotates realistic `User-Agent`, `Accept`, `Accept-Language`, and `Sec-Fetch-Mode` headers.
 
-| Target Site | Response Code | Anti-Bot Mechanism | Verdict |
-| :--- | :--- | :--- | :--- |
-| **Jumia Egypt** | `HTTP 403` | Cloudflare JS challenge (`challenges.cloudflare.com`) | ❌ Blocked (requires browser JS engine) |
-| **Amazon Egypt** | Timeout | Silent TCP drop / firewall block | ❌ Blocked (timed out) |
-| **eBay** | `HTTP 403` | Akamai Bot Manager (Reference error page) | ❌ Blocked (fingerprint rejected) |
-| **scrapingcourse.com/ecommerce** | `HTTP 200` | Static WooCommerce store (188 products) | ✅ **Selected Primary Target** |
-
-### 4.1 Ethical & Scope Boundaries
-- **Stealth Automation & Residential Proxies**: Invasive bypassing mechanisms (e.g. stealth browser automation, residential proxy networks, TLS fingerprint spoofing) were evaluated and deliberately excluded on ethical and Terms of Service compliance grounds.
-- **HTML DOM Parsing vs Raw JSON**: Direct extraction from undocumented JSON endpoints (e.g. Shopify `/products.json`) was avoided in order to strictly fulfill the requirement of validating genuine HTML DOM parsing with `symfony/dom-crawler`.
-
-### 4.2 Target Resolution
-The scraper is routed to an accessible, real-world scrapable eCommerce store (`scrapingcourse.com/ecommerce` / accessible Shopify storefront HTML) featuring 188 products, pagination, rich media, and clean DOM markup to validate the end-to-end pipeline until an ethical, compliant solution is established for enterprise eCommerce platforms.
+### 4.2 Page Rotation & Accumulation
+- Target website: `https://www.scrapingcourse.com/ecommerce/` (12 paginated catalog pages, ~188 unique products).
+- Scraper state pointer persisted in `storage/app/scraper_page.txt` (rotates pages 1 through 12 continuously).
+- Each 30s cycle scrapes the active page and upserts records using `updateOrCreate(['source_url' => $url], [...])`.
 
 ---
 
-## 5. Services Architecture
+## 5. API Specification
 
-### 5.1 `ProxyIdentityClient`
-- Communicates with `http://localhost:9000/next-identity`.
-- Fetches rotated identity containing `proxy_label` and complete browser headers (`User-Agent`, `Accept`, `Accept-Language`, `Sec-Fetch-Mode`).
-- Graceful fallback in case proxy service is offline.
+### 5.1 List Products: `GET /api/products`
+- **Controller**: `App\Http\Controllers\ProductApiController@index`
+- **Behavior**: Strictly read-only.
+- **Default (Bare)**: Returns all stored products with total count metadata.
+- **Optional Query Parameters**:
+  - `page` (int) & `per_page` (int): Enables pagination.
+  - `search` (string): Filters by title or source URL.
+  - `sort_price` (`asc`|`desc`): Sorts by price.
+  - `sort_date` (`asc`|`desc`): Sorts by creation date.
 
-### 5.2 `ScraperService`
-- Requests rotated headers from `ProxyIdentityClient`.
-- Implements a target cascade pattern.
-- Extracts product data using `Symfony\Component\DomCrawler\Crawler`.
-- Upserts records via `Product::updateOrCreate(['source_url' => $sourceUrl], [...])` to eliminate duplicate rows on repeated scrapes.
+### 5.2 Single Product: `GET /api/products/{id}`
+- **Controller**: `App\Http\Controllers\ProductApiController@show`
+- **Response**: `200 OK` with `{ "data": { ... } }` or `404 Not Found` with `{ "message": "Product not found" }`.
 
 ---
 
-## 6. API Specification
-
-### Endpoint: `GET /api/products`
-- **Method**: `GET`
-- **Controller**: `App\Http\Controllers\ProductController@index`
-- **Ordering**: `updated_at DESC`
-- **Response Format**:
-  ```json
-  {
-    "data": [
-      {
-        "id": 1,
-        "title": "Abominable Hoodie",
-        "price": "69.00",
-        "image_url": "https://www.scrapingcourse.com/ecommerce/wp-content/uploads/2024/03/mh09-blue_main.jpg",
-        "source_url": "https://www.scrapingcourse.com/ecommerce/product/abominable-hoodie/",
-        "created_at": "2026-08-31T22:30:00.000000Z",
-        "updated_at": "2026-08-31T22:30:00.000000Z"
-      }
-    ],
-    "count": 1
-  }
-  ```
-- **CORS**: Enabled for `http://localhost:3000`.
+## 6. Developer Commands
+1. `php artisan scrape:products`: Continuous 30-second scraper loop (`--once` for single run, `--interval=N` for custom interval).
+2. `php artisan dev:start`: Spawns the background scraper daemon and runs `php artisan serve` in foreground.
