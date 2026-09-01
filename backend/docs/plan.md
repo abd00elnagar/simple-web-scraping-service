@@ -2,19 +2,19 @@
 
 ## 1. Overview
 The `backend` is a Laravel 12 application responsible for:
-1. Managing the `Product` data model and MySQL database persistence.
+1. Managing the `Product` data model and MySQL / SQLite persistence.
 2. Interfacing with `proxy-service` to retrieve rotating browser fingerprint identities and proxy labels.
 3. Scraping eCommerce product data through an Artisan command (`php artisan scrape:products`) with page-rotation and deduplication.
-4. Exposing a clean, read-only REST API (`GET /api/products` and `GET /api/products/{id}`) with CORS enabled for the Next.js frontend.
+4. Exposing a clean, read-only REST API (`GET /api/products` and `GET /api/products/{product}`) with CORS enabled for the Next.js frontend.
 5. Providing a developer experience command (`php artisan dev:start`) to launch both the background scraping worker and the HTTP server simultaneously.
 
 ---
 
 ## 2. Technical Stack
-- **Framework**: Laravel 12 (PHP 8.3+ / 8.4)
-- **Database**: MySQL 8.x / MariaDB (default) with optional SQLite support
+- **Framework**: Laravel 12 (PHP 8.2+ / 8.3+)
+- **Database**: MySQL 8.x / MariaDB (default) with zero-config SQLite support
 - **HTML Parsing**: `symfony/dom-crawler` and `symfony/css-selector`
-- **HTTP Client**: Laravel `Http` (Guzzle wrapper)
+- **HTTP Client**: Laravel `Http` facade (Guzzle)
 - **Testing**: Pest PHP test framework
 
 ---
@@ -48,7 +48,7 @@ The `backend` is a Laravel 12 application responsible for:
 ### 4.2 Page Rotation & Accumulation
 - Target website: `https://www.scrapingcourse.com/ecommerce/` (12 paginated catalog pages, ~188 unique products).
 - Scraper state pointer persisted in `storage/app/scraper_page.txt` (rotates pages 1 through 12 continuously).
-- Each 30s cycle scrapes the active page and upserts records using `updateOrCreate(['source_url' => $url], [...])`.
+- Each 30s cycle scrapes the active page and upserts records using `Product::updateOrCreate(['source_url' => $url], [...])`.
 
 ---
 
@@ -60,11 +60,11 @@ The `backend` is a Laravel 12 application responsible for:
 - **Default (Bare)**: Returns all stored products with total count metadata, ordered randomly (`inRandomOrder()`) to provide fresh variety across 30-second poll cycles.
 - **Optional Query Parameters**:
   - `page` (int) & `per_page` (int): Enables pagination.
-  - `search` (string): Filters by title or source URL (disables randomization, orders by `id desc`).
+  - `search` (string): Filters by title or source URL (`LIKE %query%`, disables random order, defaults to `id desc`).
   - `sort_price` (`asc`|`desc`): Sorts by price.
   - `sort_date` (`asc`|`desc`): Sorts by creation date.
 
-### 5.2 Single Product: `GET /api/products/{id}`
+### 5.2 Single Product: `GET /api/products/{product}`
 - **Controller**: `App\Http\Controllers\ProductApiController@show`
 - **Response**: `200 OK` with `{ "data": { ... } }` or `404 Not Found` with `{ "message": "Product not found" }`.
 
@@ -73,3 +73,4 @@ The `backend` is a Laravel 12 application responsible for:
 ## 6. Developer Commands
 1. `php artisan scrape:products`: Continuous 30-second scraper loop (`--once` for single run, `--interval=N` for custom interval).
 2. `php artisan dev:start`: Spawns the background scraper daemon and runs `php artisan serve` in foreground.
+3. `php artisan test`: Runs the automated Pest feature test suite.

@@ -6,26 +6,26 @@
 backend/
 ├── app/
 │   ├── Console/Commands/
-│   │   ├── DevStart.php            # Starts scraper in background + php artisan serve
-│   │   └── ScrapeProducts.php      # Continuous/single-run scraper CLI command
+│   │   ├── DevStart.php             # Starts scraper in background + php artisan serve
+│   │   └── ScrapeProducts.php       # Continuous/single-run scraper CLI command
 │   ├── Http/Controllers/
 │   │   └── ProductApiController.php # REST API controller for products (index, show)
 │   ├── Models/
-│   │   └── Product.php             # Eloquent model with casts and mass-assignment rules
+│   │   └── Product.php              # Eloquent model with casts and mass-assignment rules
 │   └── Services/
-│       ├── ProxyIdentityClient.php # Communicates with Go proxy-service for headers
-│       └── ScraperService.php      # Scrapes eCommerce pages via DomCrawler and upserts
+│       ├── ProxyIdentityClient.php  # Communicates with Go proxy-service for headers
+│       └── ScraperService.php       # Scrapes eCommerce pages via DomCrawler and upserts
 ├── config/
-│   ├── cors.php                    # Configured for localhost:3000
-│   └── database.php                # Database connections (MySQL default, SQLite optional)
+│   ├── cors.php                     # Configured for localhost:3000
+│   └── database.php                 # Database connections (MySQL default, SQLite optional)
 ├── database/migrations/
 │   └── 2026_08_31_185950_create_products_table.php # Products schema definition
 ├── routes/
-│   └── api.php                     # Route definitions (/api/products)
+│   └── api.php                      # Route definitions (/api/products)
 └── tests/Feature/
-    ├── ProductApiTest.php          # API endpoints test suite
-    ├── ProxyIdentityClientTest.php # Proxy service integration tests
-    └── ScraperTest.php             # Deduplication and HTML parsing tests
+    ├── ProductApiTest.php           # API endpoints test suite
+    ├── ProxyIdentityClientTest.php  # Proxy service integration tests
+    └── ScraperTest.php              # Deduplication and HTML parsing tests
 ```
 
 ---
@@ -33,12 +33,12 @@ backend/
 ## 2. Core Implementation Details
 
 ### 2.1 Database & Model (`Product.php`)
-- Migration establishes a `products` table in MySQL with columns:
+- Migration establishes a `products` table in MySQL / SQLite with columns:
   - `id` (bigint auto-increment)
   - `title` (string)
   - `price` (decimal 10, 2 nullable)
   - `image_url` (string nullable)
-  - `source_url` (string unique, index)
+  - `source_url` (string unique, indexed)
   - `created_at` / `updated_at` (timestamps)
 - The model enforces decimal casting for consistent numerical formatting in JSON responses.
 
@@ -82,7 +82,7 @@ backend/
 
 ### 3.1 `php artisan dev:start`
 Located in `app/Console/Commands/DevStart.php`.
-- Automatically spawns `php artisan scrape:products --interval=30` as a detached background worker process on both Windows (`cmd /c start /b ...`) and Unix (`nohup ... &`).
+- Automatically spawns `php artisan scrape:products --interval=30` as a detached background worker process on both Windows (`cmd /c start /b "" ...`) and Unix (`nohup ... &`).
 - Immediately launches `php artisan serve --port=8000` in the current foreground terminal.
 - Flags:
   - `--port=8000`: Changes API server port.
