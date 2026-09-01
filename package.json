@@ -1,0 +1,13 @@
+{
+  "name": "simple-web-scraping-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Full-stack product web scraping service with Laravel 12, Next.js 15, and Go proxy microservice.",
+  "scripts": {
+    "dev": "concurrently -k --kill-others-on-fail --names \"proxy,backend,frontend\" --prefix-colors \"cyan,magenta,green\" \"cd proxy-service && go run main.go\" \"cd backend && php artisan dev:start\" \"cd frontend && (bun dev || npm run dev)\"",
+    "setup": "node scripts/setup.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
