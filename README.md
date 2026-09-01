@@ -24,15 +24,15 @@ A full-stack product scraping pipeline composed of three services that work toge
 
 ## How It Works
 
-1. **Go Proxy Service** maintains a pool of realistic browser identity fingerprints (User-Agent, Accept headers, Sec-Fetch headers, etc.) and exposes them via a round-robin HTTP endpoint. This prevents the scraper from presenting an identical fingerprint on every request.
+1. **Go Proxy Service** maintains a pool of 10 realistic browser identity fingerprints (User-Agent, Accept, Accept-Language, Sec-Fetch headers) and 5 rotating proxy labels (`proxy-1` .. `proxy-5`), exposing them via a thread-safe round-robin HTTP endpoint (`GET /next-identity`). This prevents downstream scrapers from presenting an identical fingerprint on every request.
 
 2. **Laravel Backend** runs a continuous 30-second scrape loop (`php artisan scrape:products`). Each iteration:
-   - Fetches the next browser identity from the Go proxy
+   - Fetches the next rotated browser identity from the Go proxy (`http://localhost:9000/next-identity`)
    - Scrapes the next catalog page from the target site (rotates pages 1–12, ~16 products each)
    - Upserts products keyed on `source_url` — no duplicates, append-only accumulation
-   - Exposes a paginated, randomised `/api/products` JSON endpoint
+   - Exposes a read-only, paginated, filterable `/api/products` JSON endpoint
 
-3. **Next.js Frontend** polls `/api/products` every 30 seconds, displaying the latest randomised product set in a responsive card grid.
+3. **Next.js Frontend** polls `/api/products` every 30 seconds with a visual countdown ticker, displaying the latest product set in a responsive card grid with debounced search, sorting, and top/bottom pagination.
 
 ---
 
@@ -40,13 +40,12 @@ A full-stack product scraping pipeline composed of three services that work toge
 
 | Tool | Minimum Version | Purpose |
 |------|----------------|---------|
-| PHP | 8.3+ | Laravel backend |
+| PHP | 8.2+ (8.3+ recommended) | Laravel backend API & scraper engine |
 | Composer | 2.x | PHP dependency management |
-| Go | 1.21+ | Proxy microservice |
-| Node.js | 18+ | Next.js frontend |
-| Bun | 1.x | Frontend package manager & dev server |
+| Go | 1.21+ | Browser identity rotation microservice |
+| Node.js / Bun | Node 18+ / Bun 1.x | Next.js frontend & root runner |
 
-> **MySQL** can be used instead of SQLite — see [Database Configuration](#database-configuration).
+> **MySQL** (default) or **SQLite** (zero-config fallback) can be used — see [Database Configuration](#database-configuration).
 
 ---
 
@@ -59,13 +58,19 @@ simple-web-scraping-service/
 │   ├── implementation.md
 │   └── walkthrough.md
 ├── backend/          # Laravel 12 API + Scraper engine
-├── frontend/         # Next.js 15 product browser UI
+│   ├── docs/         # Backend plan and implementation details
+│   └── ...
+├── frontend/         # Next.js 16 + React 19 product browser UI
+│   ├── docs/         # Frontend plan and implementation details
+│   └── ...
 ├── proxy-service/    # Go browser-identity rotation microservice
+│   ├── docs/         # Proxy service plan and implementation details
+│   └── ...
 ├── scripts/          # Automated setup & concurrent runner scripts
 │   ├── setup.js      # Cross-platform Node.js automated setup script
 │   ├── setup.bash    # Cross-platform Bash automated setup script
 │   └── run.bash      # Cross-platform concurrent runner script
-└── package.json      # Root runner configuration
+└── package.json      # Root concurrent runner configuration
 ```
 
 ---
@@ -74,7 +79,7 @@ simple-web-scraping-service/
 
 ### Quick Start (Automated Setup)
 
-Run the single automated setup command:
+Run the single automated setup command from the repository root:
 
 **Cross-Platform (Node / Bun):**
 ```bash
@@ -88,9 +93,9 @@ bash scripts/setup.bash
 ```
 
 > **What the setup script does automatically**:
-> 1. Validates and detects runtimes (`php`, `composer`, `go`, and `bun`/`npm`).
-> 2. Sets up `proxy-service` and checks Go modules.
-> 3. Configures `backend/.env`, installs PHP dependencies, and executes database migrations. If MySQL is not reachable, it prompts to seamlessly switch to SQLite.
+> 1. Validates and detects system runtimes (`php`, `composer`, `go`, and `bun`/`npm`).
+> 2. Sets up `proxy-service` and checks Go modules (`go mod tidy`).
+> 3. Configures `backend/.env`, installs PHP dependencies, and executes database migrations. If MySQL is not reachable, it prompts to switch to SQLite automatically.
 > 4. Configures `frontend/.env.local` and installs frontend and root dependencies using `bun` (with automatic fallback to `npm`).
 
 ---
@@ -106,20 +111,16 @@ cd proxy-service
 
 # Run directly (no build required)
 go run main.go
-
-# OR use the pre-built binary (Windows)
-./proxy-service.exe
 ```
 
 Starts on **http://localhost:9000**.
 
-Endpoints:
-- `GET /identity` — returns a rotating browser fingerprint JSON object
-- `GET /health` — liveness check
+Endpoint:
+- `GET /next-identity` — returns next rotated proxy label and browser fingerprint headers
 
 Run tests:
 ```bash
-go test ./...
+go test -v ./...
 ```
 
 ---
@@ -159,7 +160,7 @@ Create the database in MySQL (if not already existing):
 CREATE DATABASE IF NOT EXISTS scraper_service_backend CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-> **Optional Alternative (SQLite)**: If you prefer zero-config SQLite, change `DB_CONNECTION=sqlite` and `DB_DATABASE=database/database.sqlite` in `backend/.env`.
+> **Optional Alternative (SQLite)**: If you prefer zero-config SQLite, set `DB_CONNECTION=sqlite` and `DB_DATABASE=database/database.sqlite` in `backend/.env`, create an empty `backend/database/database.sqlite` file, and run migrations.
 
 #### Run migrations
 
@@ -175,7 +176,7 @@ php artisan migrate
 php artisan dev:start
 ```
 
-This spawns `scrape:products` as a detached background process and then starts the HTTP server on port 8000.
+This spawns `scrape:products` as a detached background process and starts the HTTP server on port 8000.
 
 Available options:
 ```
@@ -208,9 +209,9 @@ php artisan test
 ```
 
 Test suite covers:
-- `ProductApiTest` — index pagination, show 200/404, empty DB auto-scrape trigger
-- `ScraperTest` — idempotent upsert (no duplicates on re-scrape)
-- `ProxyIdentityClientTest` — correct header forwarding from Go service
+- `ProductApiTest` — index randomized listing, search/sort query params, pagination, show 200/404
+- `ScraperTest` — HTML parsing and idempotent upsert (no duplicates on re-scrape)
+- `ProxyIdentityClientTest` — correct header extraction and offline error handling
 
 ---
 
@@ -221,13 +222,14 @@ Test suite covers:
 ```bash
 cd frontend
 
-# Install dependencies
+# Install dependencies (Bun or npm)
 bun install
+# or: npm install
 ```
 
 #### Environment
 
-The frontend reads the API URL from `.env.local`. This file is already present in the repo:
+The frontend reads the API URL from `.env.local` (created automatically by setup scripts):
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
@@ -239,11 +241,12 @@ If you run the backend on a different port, update this value.
 
 ```bash
 bun dev
+# or: npm run dev
 ```
 
 Frontend runs on **http://localhost:3000**.
 
-Navigating to `/` redirects automatically to `/products`.
+Navigating to `/` renders the products catalog view at `/products`.
 
 ---
 
@@ -263,10 +266,10 @@ bun dev
 # or: npm run dev
 ```
 
-This uses `concurrently` to start:
+This uses `concurrently` (with `--kill-others` and `--kill-others-on-fail`) to start:
 - `[proxy]` Go microservice on `:9000`
 - `[backend]` Laravel API server + 30s background scraper on `:8000`
-- `[frontend]` Next.js 15 dev server on `:3000`
+- `[frontend]` Next.js dev server on `:3000`
 
 Press `Ctrl+C` to stop all services simultaneously.
 
@@ -288,7 +291,7 @@ cd frontend
 bun dev # or: npm run dev
 ```
 
-Then open **http://localhost:3000** in your browser. Subsequent scrapes happen automatically every 30 seconds in the background, walking through the 12 catalog pages one per cycle until all ~188 products are accumulated.
+Then open **http://localhost:3000** in your browser.
 
 ---
 
@@ -298,33 +301,44 @@ Base URL: `http://localhost:8000/api`
 
 ### `GET /api/products`
 
-Returns a list of scraped products in JSON format. Without filters, products are returned in randomised order (`inRandomOrder()`) with full collection metadata (`total` count).
+Returns a list of scraped products in JSON format. Without filters or pagination parameters, products are returned in randomized order (`inRandomOrder()`) with full collection metadata (`total` count).
 
 **Query parameters:**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `search` | `string` | — | Filter products matching title or source URL (`LIKE %query%`) |
+| `search` | `string` | — | Filter products matching title or source URL (`LIKE %query%`, orders by `id desc`) |
 | `sort_price` | `string` | — | Sort by price: `asc` (low to high) or `desc` (high to low) |
-| `sort_date` | `string` | — | Sort by creation date: `desc` (newest first) |
-| `page` | `integer` | `1` | Page number for paginated view |
+| `sort_date` | `string` | — | Sort by creation date: `desc` (newest first) or `asc` |
+| `page` | `integer` | — | Page number for paginated view |
 | `per_page` | `integer` | `20` | Items per page (when pagination is active) |
 
-**Response:**
+**Bare Collection Response (`GET /api/products`):**
 
 ```json
 {
   "data": [
     {
       "id": 1,
-      "title": "Fjallraven - Foldsack No. 1 Backpack",
-      "price": "109.95",
-      "image_url": "https://...",
-      "source_url": "https://scrapingcourse.com/ecommerce/product/...",
+      "title": "Abominable Hoodie",
+      "price": "69.00",
+      "image_url": "https://www.scrapingcourse.com/ecommerce/wp-content/uploads/2024/03/mh09-blue_main.jpg",
+      "source_url": "https://www.scrapingcourse.com/ecommerce/product/abominable-hoodie/",
       "created_at": "2026-09-01T00:00:00.000000Z",
       "updated_at": "2026-09-01T00:00:00.000000Z"
     }
   ],
+  "meta": {
+    "total": 188
+  }
+}
+```
+
+**Paginated Response (`GET /api/products?page=1&per_page=20`):**
+
+```json
+{
+  "data": [ ... ],
   "meta": {
     "current_page": 1,
     "from": 1,
@@ -342,7 +356,17 @@ Returns a single product by ID.
 
 **Response `200`:**
 ```json
-{ "data": { "id": 1, "title": "...", ... } }
+{
+  "data": {
+    "id": 1,
+    "title": "Abominable Hoodie",
+    "price": "69.00",
+    "image_url": "https://www.scrapingcourse.com/ecommerce/wp-content/uploads/2024/03/mh09-blue_main.jpg",
+    "source_url": "https://www.scrapingcourse.com/ecommerce/product/abominable-hoodie/",
+    "created_at": "2026-09-01T00:00:00.000000Z",
+    "updated_at": "2026-09-01T00:00:00.000000Z"
+  }
+}
 ```
 
 **Response `404`:**
@@ -356,41 +380,40 @@ Returns a single product by ID.
 
 ### Page Rotation
 
-The scraper tracks which catalog page it last scraped in `backend/storage/app/scraper_page.txt`. Each run advances the pointer by one:
+The scraper tracks which catalog page it last scraped in `backend/storage/app/scraper_page.txt`. Each run advances the pointer through the 12 catalog pages (~188 total products):
 
 ```
-Run 1  →  page 1  (products  1–16)
-Run 2  →  page 2  (products 17–32)
+Cycle 1  →  page 1/2  (products ~1–16)
+Cycle 2  →  page 3    (products ~33–48)
 ...
-Run 12 →  page 12 (products 177–188)
-Run 13 →  page 1  (cycle repeats, all upserts, zero new inserts)
+Cycle 12 →  page 12   (products ~177–188)
+Cycle 13 →  page 1    (cycle repeats, all upserts, zero duplicate rows)
 ```
 
-Delete `scraper_page.txt` to reset the pointer to page 1.
+Delete `storage/app/scraper_page.txt` to reset the pointer to page 1.
 
 ### Deduplication
 
-Products are keyed on `source_url` (unique index). `updateOrCreate` ensures re-scraping the same page refreshes title/price/image data without creating duplicate rows.
+Products are keyed on `source_url` (unique index in database). `Product::updateOrCreate` ensures re-scraping the same page refreshes title/price/image data without creating duplicate records.
 
 ### Browser Fingerprint Rotation
 
-The Go proxy maintains a pool of realistic browser identities and cycles through them on each `/identity` request. The Laravel scraper fetches a fresh identity before every HTTP request, varying:
+The Go proxy maintains a pool of 10 realistic browser identities and 5 proxy labels, cycling through them sequentially on each `/next-identity` request. The Laravel scraper fetches a fresh identity before every HTTP request, varying:
 
 - `User-Agent`
 - `Accept`
 - `Accept-Language`
-- `Sec-Fetch-Mode` / `Sec-Fetch-Dest` / `Sec-Fetch-Site`
-- `Cache-Control`
+- `Sec-Fetch-Mode`
 
 ### Anti-Bot Target History
 
 | Target | Result | Reason |
 |--------|--------|--------|
-| Jumia Egypt | ❌ 403 | Cloudflare JS challenge |
-| Amazon Egypt | ❌ Timeout | Enterprise firewall TCP block |
+| Jumia Egypt | ❌ 403 | Cloudflare JS challenge (`challenges.cloudflare.com`) |
+| Amazon Egypt | ❌ Timeout | Enterprise firewall silent TCP connection timeout |
 | eBay | ❌ 403 | Akamai Bot Manager |
 | Noon | ❌ N/A | Client-side SPA + WAF |
-| **scrapingcourse.com/ecommerce** | ✅ 200 | Open WooCommerce demo store, 188 products |
+| **scrapingcourse.com/ecommerce** | ✅ 200 | Open WooCommerce demo store, 188 products across 12 pages |
 
 ---
 
@@ -400,14 +423,14 @@ The Go proxy maintains a pool of realistic browser identities and cycles through
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `APP_KEY` | *(generated)* | Laravel encryption key — run `php artisan key:generate` |
+| `APP_KEY` | *(generated)* | Laravel encryption key — generated via `php artisan key:generate` |
 | `APP_URL` | `http://localhost:8000` | Backend base URL |
-| `DB_CONNECTION` | `sqlite` | `sqlite` or `mysql` |
-| `DB_DATABASE` | `database/database.sqlite` | SQLite path or MySQL database name |
+| `DB_CONNECTION` | `mysql` | Database driver (`mysql` or `sqlite`) |
 | `DB_HOST` | `127.0.0.1` | MySQL host (MySQL only) |
 | `DB_PORT` | `3306` | MySQL port (MySQL only) |
-| `DB_USERNAME` | — | MySQL username (MySQL only) |
-| `DB_PASSWORD` | — | MySQL password (MySQL only) |
+| `DB_DATABASE` | `scraper_service_backend` | MySQL database name (or `database/database.sqlite` for SQLite) |
+| `DB_USERNAME` | `root` | MySQL username (MySQL only) |
+| `DB_PASSWORD` | `""` | MySQL password (MySQL only) |
 | `LOG_LEVEL` | `debug` | Laravel log verbosity |
 
 ### Frontend (`frontend/.env.local`)
@@ -420,13 +443,13 @@ The Go proxy maintains a pool of realistic browser identities and cycles through
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Scraper engine | Laravel 12 (PHP 8.3), `symfony/dom-crawler` |
-| Database | SQLite (default) / MySQL |
-| HTTP client | Laravel `Http` facade (Guzzle) |
-| Proxy microservice | Go 1.21 |
-| Frontend | Next.js 15, React 19, TypeScript |
-| Frontend runtime | Bun |
-| Styling | Tailwind CSS |
-| Testing | Pest (PHP), `go test` (Go) |
+| Layer | Technology | Version |
+|-------|------------|---------|
+| Scraper engine & API | Laravel / PHP | Laravel 12, PHP 8.2+ (`symfony/dom-crawler`, `symfony/css-selector`) |
+| Database | MySQL (default) / SQLite (fallback) | MySQL 8.x / SQLite 3 |
+| HTTP client | Laravel `Http` facade | Guzzle 7.x |
+| Proxy microservice | Golang | Go 1.21+ (Standard Library) |
+| Frontend UI | Next.js, React, TypeScript | Next.js 16 (`16.3.3`), React 19 (`19.2.8`), TypeScript 5 |
+| Frontend Styling | Tailwind CSS | Tailwind CSS v4 (`@tailwindcss/postcss: ^4`) |
+| Linter & Formatter | Biome | Biome 2.4+ (`biome.json`) |
+| Testing | Pest PHP, `go test` | Pest 3.x, Go testing package |

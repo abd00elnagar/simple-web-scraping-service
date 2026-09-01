@@ -4,9 +4,10 @@
 
 ```
 simple-web-scraping-service/
-├── docs/                        # Root architecture and implementation docs (this folder)
+├── docs/                        # Root architecture and implementation docs
 │   ├── plan.md                  # High-level architecture & data contracts
-│   └── implementation.md        # Orchestration, setup scripts, and environment details
+│   ├── implementation.md        # Orchestration, setup scripts, and environment details (this file)
+│   └── walkthrough.md           # Development chronicle and challenge log
 ├── backend/                     # Laravel 12 API & Scraping Engine
 │   ├── app/                     # Controllers, Models, Services, Console Commands
 │   ├── config/                  # Database, CORS, and Service configurations
@@ -14,11 +15,12 @@ simple-web-scraping-service/
 │   ├── docs/                    # Backend plan.md and implementation.md
 │   ├── routes/api.php           # REST API routes
 │   └── tests/Feature/           # Pest feature test suite
-├── frontend/                    # Next.js 15 Product Browser UI
+├── frontend/                    # Next.js 16 Product Browser UI
 │   ├── app/                     # App router pages & layouts
 │   ├── components/              # Navbar, ProductCard, ErrorBanner, EmptyState, Skeleton
 │   ├── docs/                    # Frontend plan.md and implementation.md
-│   └── types/                   # TypeScript interfaces
+│   ├── types/                   # TypeScript interfaces
+│   └── biome.json               # Biome linter & formatter configuration
 ├── proxy-service/               # Go Browser Identity Rotation Microservice
 │   ├── docs/                    # Proxy service plan.md and implementation.md
 │   ├── main.go                  # HTTP server & sync.Mutex round-robin rotator
@@ -28,7 +30,6 @@ simple-web-scraping-service/
 │   ├── setup.bash               # Unified Bash automated setup script
 │   └── run.bash                 # Unified concurrent runner script
 ├── package.json                 # Root npm/bun runner configuration
-├── walkthrough.md               # Project development chronicle
 └── README.md                    # Project overview & running instructions
 ```
 
@@ -41,7 +42,7 @@ The setup automation (`npm run setup` / `bun run setup` or `bash scripts/setup.b
 1. **System Prerequisite Validation**:
    - `php`: Requires version >= 8.2 (fails with download link if missing).
    - `composer`: Verifies Composer is available in PATH.
-   - `go`: Verifies Go (1.21+) is available in PATH (fails with `https://go.dev/dl/` if missing).
+   - `go`: Verifies Go (1.21+) is available in PATH.
    - `bun` / `npm`: Detects `bun` first; seamlessly falls back to `npm` if Bun is absent.
 
 2. **Go Proxy Microservice Setup**:
@@ -82,9 +83,9 @@ bun dev
 ```
 
 This starts:
-- `[proxy]` Go microservice on port `:9000`
+- `[proxy]` Go microservice on port `:9000` (`GET /next-identity`)
 - `[backend]` Laravel API server + continuous scraper on port `:8000`
-- `[frontend]` Next.js UI on port `:3000`
+- `[frontend]` Next.js 16 UI on port `:3000`
 
 Press `Ctrl+C` to terminate all services at once.
 

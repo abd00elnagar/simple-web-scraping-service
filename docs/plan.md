@@ -21,7 +21,7 @@ The **Simple Web Scraping Service** is a decoupled full-stack scraping pipeline 
 └───────────────▲───────────────┘
                 │ HTTP GET /api/products (polling / query)
 ┌───────────────┴───────────────┐
-│      Next.js 15 Frontend      │
+│      Next.js 16 Frontend      │
 │      Port: 3000               │
 │      - 30s live auto-polling  │
 │      - Top pagination (30/pg) │
@@ -35,23 +35,23 @@ The **Simple Web Scraping Service** is a decoupled full-stack scraping pipeline 
 
 | Service | Technology | Port | Primary Responsibility |
 | :--- | :--- | :--- | :--- |
-| **`proxy-service`** | Go 1.21+ (Standard Library) | `:9000` | Maintains thread-safe pool of 10 browser identity profiles and 5 proxy labels; serves rotated fingerprints to downstream callers. |
-| **`backend`** | Laravel 12 (PHP 8.3+) | `:8000` | Orchestrates 30s scraper cycles across 12 catalog pages (188 products), deduplicates records in MySQL via `source_url`, and provides the read-only REST API. |
-| **`frontend`** | Next.js 15, React 19, Tailwind | `:3000` | Renders responsive product catalog, dispatches debounced search/sort queries to backend, executes 30s live auto-refresh, and provides top pagination. |
+| **`proxy-service`** | Go 1.21+ (Standard Library) | `:9000` | Maintains thread-safe pool of 10 browser identity profiles and 5 proxy labels; serves rotated fingerprints via `GET /next-identity`. |
+| **`backend`** | Laravel 12 (PHP 8.2+) | `:8000` | Orchestrates 30s scraper cycles across 12 catalog pages (188 products), deduplicates records via `source_url` unique index, and provides the read-only REST API. |
+| **`frontend`** | Next.js 16, React 19, Tailwind CSS v4 | `:3000` | Renders responsive product catalog, dispatches debounced search/sort queries to backend, executes 30s live auto-refresh with countdown, and provides top pagination. |
 
 ---
 
 ## 3. Resilience & Fallback Matrix
 
 1. **Database Fallback (MySQL ↔ SQLite)**:
-   - Default: MySQL (`127.0.0.1:3306`).
-   - Fallback: If `php artisan migrate` encounters an unreachable MySQL host, the setup script (`scripts/setup.bash`) prompts to switch to zero-config SQLite, creating `database.sqlite` and running migrations automatically.
+   - Default: MySQL (`127.0.0.1:3306`, database `scraper_service_backend`).
+   - Fallback: If `php artisan migrate` encounters an unreachable MySQL host, the setup script (`scripts/setup.js` / `scripts/setup.bash`) prompts to switch to zero-config SQLite, creating `database.sqlite` and running migrations automatically.
 2. **Package Manager Fallback (Bun ↔ npm)**:
    - Primary: Bun.
-   - Fallback: If `bun` is not installed, the setup script seamlessly falls back to `npm install` and `npm run dev`.
+   - Fallback: If `bun` is not installed, the setup scripts and concurrent runner fall back seamlessly to `npm install` and `npm run dev`.
 3. **Identity Rotation Fallback**:
-   - The Laravel scraper requests fresh browser profiles from `proxy-service` before every page scrape.
-   - If the Go service is offline, descriptive runtime errors pinpoint the service status.
+   - The Laravel scraper requests fresh browser profiles from `proxy-service` (`http://localhost:9000/next-identity`) before every page scrape.
+   - If the Go service is offline, descriptive runtime exceptions pinpoint the service status and troubleshooting steps.
 
 ---
 
@@ -60,8 +60,8 @@ The **Simple Web Scraping Service** is a decoupled full-stack scraping pipeline 
 - **Base URL**: `http://localhost:8000/api`
 - **`GET /api/products`**:
   - Without params: Returns all products randomized (`inRandomOrder()`) with `{ "meta": { "total": <count> } }`.
-  - With `search=<query>`: Filters titles and URLs using MySQL `LIKE`.
+  - With `search=<query>`: Filters titles and URLs using MySQL `LIKE %query%` and orders by `id desc`.
   - With `sort_price=asc|desc`: Numerical price ordering.
-  - With `sort_date=desc`: Newest creation date ordering.
-  - With `page=<n>&per_page=<n>`: Paginated subset with complete pagination metadata.
-- **`GET /api/products/{id}`**: Returns single product object or 404.
+  - With `sort_date=asc|desc`: Creation date ordering (`created_at`).
+  - With `page=<n>&per_page=<n>`: Paginated subset with complete pagination metadata (`current_page`, `from`, `last_page`, `per_page`, `to`, `total`).
+- **`GET /api/products/{id}`**: Returns single product object `{ "data": { ... } }` or 404 `{ "message": "Product not found" }`.
