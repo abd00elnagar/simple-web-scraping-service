@@ -81,3 +81,20 @@ Structured and populated individual `docs/` folders for all three services:
 - **`scripts/setup.js` (`npm run setup` / `bun run setup`)**: Cross-platform Node.js automation script verifying PHP (8.2+), Composer, Go (1.21+), and Bun/npm. Installs backend dependencies, runs database migrations with interactive SQLite fallback on failure, installs frontend dependencies, and sets up workspace packages.
 - **`scripts/setup.bash`**: Bash equivalent with matching environment checks and dynamic fallback logic.
 - **`scripts/run.bash`**: Launches all 3 services concurrently (`proxy-service` `:9000`, `backend` `:8000`, `frontend` `:3000`) with `--kill-others` (`-k`) and `--kill-others-on-fail` fail-safe trapping.
+
+---
+
+## Phase 4 — Real-World Verification, Database Fallback & Execution Testing
+
+### 1. Multi-Service Concurrency (`bun dev`)
+- Executed `bun dev` to test the concurrent runner across all three services simultaneously.
+- Verified Go microservice serving rotated browser fingerprint identities (`proxy-1` → `proxy-2` → `proxy-3` → `proxy-4` → `proxy-5`) with realistic `User-Agent`, `Accept`, and `Sec-Fetch-Mode` headers over HTTP port `:9000`.
+- Verified Laravel HTTP API server listening on `http://127.0.0.1:8000` with the detached background scraper worker cycling every 30 seconds.
+
+### 2. Clean State Wipe & Dynamic SQLite Fallback (`bun run setup`)
+- Executed `php backend/artisan db:wipe` to simulate a fresh environment with all tables dropped.
+- Executed `bun run setup` (`node scripts/setup.js`):
+  - Automatically detected when the MySQL connection was unavailable (`target machine actively refused it`).
+  - Interactive prompt triggered: `Would you like to switch to SQLite? (Y/N) [default: Y]`.
+  - Automatically reconfigured `backend/.env` (`DB_CONNECTION=sqlite`, `DB_DATABASE=database/database.sqlite`), created `backend/database/database.sqlite`, and executed all 5 database migrations (`users`, `cache`, `jobs`, `products`, `personal_access_tokens`).
+  - Verified subsequent idempotent runs of `bun run setup` running migrations cleanly in under 150ms without errors.
