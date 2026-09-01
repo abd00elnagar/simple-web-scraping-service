@@ -80,15 +80,21 @@ echo "[2/4] Setting up backend (Laravel)..."
 (
     cd backend
 
+    local newly_created_env=0
     if [ ! -f ".env" ]; then
         echo "  - Creating .env from .env.example..."
         cp .env.example .env 2>/dev/null || copy .env.example .env 2>/dev/null || true
-        run_artisan "key:generate --ansi" || true
+        newly_created_env=1
     fi
 
     echo "  - Installing PHP dependencies..."
     if ! run_composer "install --no-interaction --prefer-dist --optimize-autoloader"; then
         echo "[ERROR] Failed to install backend composer dependencies."
+    fi
+
+    if [ "$newly_created_env" -eq 1 ] || ! grep -q "APP_KEY=base64:" .env 2>/dev/null; then
+        echo "  - Generating application key..."
+        run_artisan "key:generate --ansi" || true
     fi
 
     echo "  - Running database migrations..."

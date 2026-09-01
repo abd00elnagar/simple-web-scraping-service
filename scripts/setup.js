@@ -54,10 +54,10 @@ async function main() {
   const envPath = path.join(backendDir, '.env');
   const envExamplePath = path.join(backendDir, '.env.example');
 
-  if (!fs.existsSync(envPath) && fs.existsSync(envExamplePath)) {
+  const newlyCreatedEnv = !fs.existsSync(envPath) && fs.existsSync(envExamplePath);
+  if (newlyCreatedEnv) {
     console.log('  - Creating backend/.env from .env.example...');
     fs.copyFileSync(envExamplePath, envPath);
-    tryExec(['php artisan key:generate --ansi', 'cmd.exe /c "php artisan key:generate --ansi"'], backendDir);
   }
 
   console.log('  - Installing PHP dependencies...');
@@ -70,6 +70,11 @@ async function main() {
 
   if (!composerOk) {
     console.log('  \x1b[33m[WARNING] Composer install failed. Please ensure Composer is installed.\x1b[0m');
+  }
+
+  if (newlyCreatedEnv || (fs.existsSync(envPath) && !fs.readFileSync(envPath, 'utf8').includes('APP_KEY=base64:'))) {
+    console.log('  - Generating application key...');
+    tryExec(['php artisan key:generate --ansi', 'cmd.exe /c "php artisan key:generate --ansi"'], backendDir);
   }
 
   console.log('  - Running database migrations...');
