@@ -62,7 +62,8 @@ simple-web-scraping-service/
 ├── frontend/         # Next.js 15 product browser UI
 ├── proxy-service/    # Go browser-identity rotation microservice
 ├── scripts/          # Automated setup & concurrent runner scripts
-│   ├── setup.bash    # Cross-platform automated setup script
+│   ├── setup.js      # Cross-platform Node.js automated setup script
+│   ├── setup.bash    # Cross-platform Bash automated setup script
 │   └── run.bash      # Cross-platform concurrent runner script
 └── package.json      # Root runner configuration
 ```
@@ -73,23 +74,24 @@ simple-web-scraping-service/
 
 ### Quick Start (Automated Setup)
 
-Run the unified setup script using Bash (Git Bash, WSL, Linux, or macOS):
+Run the single automated setup command:
 
+**Cross-Platform (Node / Bun):**
+```bash
+bun run setup
+# or: npm run setup
+```
+
+**Via Bash (Git Bash, WSL, Linux, macOS):**
 ```bash
 bash scripts/setup.bash
 ```
 
-*Or via npm/bun:*
-```bash
-npm run setup
-# or: bun run setup
-```
-
 > **What the setup script does automatically**:
-> 1. Validates required runtimes (`php`, `composer`, `go`, and `bun`/`npm`).
+> 1. Validates and detects runtimes (`php`, `composer`, `go`, and `bun`/`npm`).
 > 2. Sets up `proxy-service` and checks Go modules.
 > 3. Configures `backend/.env`, installs PHP dependencies, and executes database migrations. If MySQL is not reachable, it prompts to seamlessly switch to SQLite.
-> 4. Configures `frontend/.env.local` and installs dependencies using `bun` (or `npm` fallback).
+> 4. Configures `frontend/.env.local` and installs frontend and root dependencies using `bun` (with automatic fallback to `npm`).
 
 ---
 
@@ -296,14 +298,17 @@ Base URL: `http://localhost:8000/api`
 
 ### `GET /api/products`
 
-Returns a **randomised**, paginated list of scraped products.
+Returns a list of scraped products in JSON format. Without filters, products are returned in randomised order (`inRandomOrder()`) with full collection metadata (`total` count).
 
 **Query parameters:**
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `page` | `1` | Page number |
-| `per_page` | `20` | Items per page |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `search` | `string` | — | Filter products matching title or source URL (`LIKE %query%`) |
+| `sort_price` | `string` | — | Sort by price: `asc` (low to high) or `desc` (high to low) |
+| `sort_date` | `string` | — | Sort by creation date: `desc` (newest first) |
+| `page` | `integer` | `1` | Page number for paginated view |
+| `per_page` | `integer` | `20` | Items per page (when pagination is active) |
 
 **Response:**
 
