@@ -35,11 +35,13 @@ test('scraper successfully extracts products and upserts without duplicate recor
 
     $sampleHtml2 = str_replace('49.99', '39.99', $sampleHtml1);
 
+    @unlink(storage_path('app/scraper_page.txt'));
+
     Http::fake([
         'http://localhost:9000/next-identity' => Http::sequence()
             ->push(['proxy_label' => 'proxy-1', 'headers' => ['User-Agent' => 'Chrome/128.0']], 200)
             ->push(['proxy_label' => 'proxy-2', 'headers' => ['User-Agent' => 'Firefox/129.0']], 200),
-        'https://www.scrapingcourse.com/ecommerce/' => Http::sequence()
+        'https://www.scrapingcourse.com/ecommerce*' => Http::sequence()
             ->push($sampleHtml1, 200)
             ->push($sampleHtml2, 200),
     ]);
