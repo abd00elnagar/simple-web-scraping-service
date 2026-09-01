@@ -101,9 +101,11 @@ Structured and populated individual `docs/` folders for all three services:
 
 ---
 
+## Phase 4 — Root Setup Automation & Global Documentation
+
 ### 1. Unified Cross-Platform Setup Scripts
 - **`scripts/setup.js` (`npm run setup` / `bun run setup`)**: Cross-platform Node.js automation script verifying PHP (8.2+), Composer (including `composer.bat`), Go (1.21+), and Bun/npm. Installs backend dependencies, runs database migrations with interactive SQLite fallback on failure, installs frontend dependencies, and sets up workspace packages.
-- **`scripts/setup.bash`**: Bash equivalent with matching environment checks and dynamic fallback logic.
+- **`scripts/setup.bash`**: Bash equivalent with matching environment checks and direct execution fallback logic.
 
 ### 2. Migration-Driven Database Fallback
 - If `php artisan migrate` fails due to MySQL being unavailable or unconfigured, the setup script prompts the user to switch to SQLite.
@@ -117,5 +119,6 @@ Structured and populated individual `docs/` folders for all three services:
 ### 4. Root Documentation Suite (`docs/`)
 - **`docs/plan.md`**: High-level system architecture, multi-tier service topology, resilience matrix, and REST data contracts.
 - **`docs/implementation.md`**: Project directory map, setup script execution lifecycle, concurrent runner mechanics, port allocations, and multi-terminal running instructions.
+- **`docs/walkthrough.md`**: Comprehensive chronicle of all four phases of engineering, decisions, bug fixes, and workflows.
 
 
